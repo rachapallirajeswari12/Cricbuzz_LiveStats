@@ -6,6 +6,8 @@ from utils.cricbuzz_api import (
     get_cricbuzz_matches
 )
 
+from utils.db_connection import get_connection
+
 
 # ============================================================
 # PAGE CONFIG
@@ -97,9 +99,7 @@ st.markdown(
 # ============================================================
 
 st.sidebar.title("🏏 Cricbuzz LiveStats")
-
 st.sidebar.markdown("---")
-
 st.sidebar.header("📊 Dashboard")
 
 selected_section = st.sidebar.radio(
@@ -117,15 +117,9 @@ selected_section = st.sidebar.radio(
 )
 
 st.sidebar.markdown("---")
-
 st.sidebar.header("👩‍💻 Created By")
-
-st.sidebar.success(
-    "Rajeswari Rachapalli"
-)
-
+st.sidebar.success("Rajeswari Rachapalli")
 st.sidebar.markdown("---")
-
 st.sidebar.caption(
     "Real-Time Cricket Insights & SQL-Based Analytics"
 )
@@ -149,30 +143,110 @@ st.markdown(
 
 
 # ============================================================
-# DATABASE PLACEHOLDER
+# DATABASE FUNCTIONS
 # ============================================================
-# MySQL is temporarily disabled for Streamlit Cloud deployment.
-# Streamlit Cloud cannot connect to the local Windows MySQL
-# server through localhost:3306.
-#
-# The live Cricbuzz API features continue to work.
-# Database integration can be connected later using a
-# cloud-accessible database.
-
 
 def get_counts():
 
-    return {
-        "matches": 0,
-        "players": 0,
-        "teams": 0,
-        "venues": 0
-    }
+    connection = None
+    cursor = None
+
+    try:
+        connection = get_connection()
+        cursor = connection.cursor()
+
+        cursor.execute(
+            "SELECT COUNT(*) FROM matches"
+        )
+        matches = cursor.fetchone()[0]
+
+        cursor.execute(
+            "SELECT COUNT(*) FROM players"
+        )
+        players = cursor.fetchone()[0]
+
+        cursor.execute(
+            "SELECT COUNT(*) FROM teams"
+        )
+        teams = cursor.fetchone()[0]
+
+        cursor.execute(
+            "SELECT COUNT(*) FROM venues"
+        )
+        venues = cursor.fetchone()[0]
+
+        return {
+            "matches": matches,
+            "players": players,
+            "teams": teams,
+            "venues": venues
+        }
+
+    except Exception as e:
+
+        st.warning(
+            f"Database connection error: {e}"
+        )
+
+        return {
+            "matches": 0,
+            "players": 0,
+            "teams": 0,
+            "venues": 0
+        }
+
+    finally:
+
+        if cursor:
+            cursor.close()
+
+        if connection:
+            connection.close()
 
 
 def get_recent_matches():
 
-    return []
+    connection = None
+    cursor = None
+
+    try:
+        connection = get_connection()
+
+        cursor = connection.cursor(
+            dictionary=True
+        )
+
+        cursor.execute(
+            """
+            SELECT
+                m.match_id,
+                m.description,
+                m.match_date,
+                m.status,
+                m.api_match_id
+            FROM matches m
+            ORDER BY m.match_date DESC
+            LIMIT 10
+            """
+        )
+
+        return cursor.fetchall()
+
+    except Exception as e:
+
+        st.warning(
+            f"Unable to load recent matches: {e}"
+        )
+
+        return []
+
+    finally:
+
+        if cursor:
+            cursor.close()
+
+        if connection:
+            connection.close()
 
 
 # ============================================================
@@ -183,9 +257,15 @@ def get_match_score(match_id):
 
     data = get_match_commentary(match_id)
 
-    mini = data.get("miniscore", {})
+    mini = data.get(
+        "miniscore",
+        {}
+    )
 
-    header = data.get("matchHeader", {})
+    header = data.get(
+        "matchHeader",
+        {}
+    )
 
     return data, mini, header
 
@@ -203,6 +283,7 @@ def get_team_name(team_data):
         team_data.get("name")
         or team_data.get("shortName")
         or team_data.get("teamName")
+        or team_data.get("teamSName")
         or str(team_data.get("id", "Unknown"))
     )
 
@@ -316,8 +397,7 @@ def show_dashboard():
     else:
 
         st.info(
-            "Database match data is temporarily unavailable. "
-            "Live Cricbuzz data is available in Live Match Center."
+            "No database match data available."
         )
 
 
@@ -347,8 +427,7 @@ def show_recent_matches():
     else:
 
         st.info(
-            "Database match data is temporarily unavailable. "
-            "Please use Live Match Center for live Cricbuzz data."
+            "No recent match data available."
         )
 
 
@@ -384,12 +463,15 @@ def show_live_match():
 
             return
 
-        # ----------------------------------------------------
-        # TEAMS
-        # ----------------------------------------------------
+        team1 = header.get(
+            "team1",
+            {}
+        )
 
-        team1 = header.get("team1", {})
-        team2 = header.get("team2", {})
+        team2 = header.get(
+            "team2",
+            {}
+        )
 
         team1_name = get_team_name(team1)
         team2_name = get_team_name(team2)
@@ -397,10 +479,6 @@ def show_live_match():
         st.markdown(
             f"### 🏏 {team1_name} vs {team2_name}"
         )
-
-        # ----------------------------------------------------
-        # STATUS
-        # ----------------------------------------------------
 
         status = (
             mini.get("status")
@@ -440,7 +518,7 @@ def show_live_match():
         st.divider()
 
         # ----------------------------------------------------
-        # CURRENT SCORE
+        # SCORE
         # ----------------------------------------------------
 
         bat_team = mini.get(
@@ -464,11 +542,64 @@ def show_live_match():
             0
         )
 
+        # ----------------------------------------------------
+        # BATTING TEAM DETECTION
+        # ----------------------------------------------------
+
+        bat_team_score_obj = mini.get(
+            "batTeamScoreObj",
+            {}
+        )
+
         batting_team = (
-            bat_team.get("teamName")
+            bat_team_score_obj.get("teamName")
+            or bat_team_score_obj.get("teamSName")
+            or bat_team.get("teamName")
             or bat_team.get("shortName")
+            or bat_team.get("teamSName")
             or "Unknown"
         )
+
+        if batting_team == "Unknown":
+
+            bat_team_id = (
+                bat_team.get("teamId")
+                or bat_team.get("id")
+                or bat_team_score_obj.get("teamId")
+                or bat_team_score_obj.get("id")
+            )
+
+            team1_id = (
+                team1.get("id")
+                or team1.get("teamId")
+            )
+
+            team2_id = (
+                team2.get("id")
+                or team2.get("teamId")
+            )
+
+            if (
+                bat_team_id
+                and str(bat_team_id) == str(team1_id)
+            ):
+
+                batting_team = team1_name
+
+            elif (
+                bat_team_id
+                and str(bat_team_id) == str(team2_id)
+            ):
+
+                batting_team = team2_name
+
+            elif bat_team_id:
+
+                batting_team = f"Team {bat_team_id}"
+
+        # ----------------------------------------------------
+        # SCORE CARDS
+        # ----------------------------------------------------
 
         col1, col2, col3, col4 = st.columns(4)
 
@@ -617,33 +748,15 @@ def show_live_match():
 
         st.divider()
 
-        # ----------------------------------------------------
-        # INNINGS SUMMARY
-        # ----------------------------------------------------
-
-        show_innings_summary(
-            mini
-        )
+        show_innings_summary(mini)
 
         st.divider()
 
-        # ----------------------------------------------------
-        # ANALYTICS
-        # ----------------------------------------------------
-
-        show_analytics(
-            mini
-        )
+        show_analytics(mini)
 
         st.divider()
 
-        # ----------------------------------------------------
-        # COMMENTARY
-        # ----------------------------------------------------
-
-        show_commentary(
-            data
-        )
+        show_commentary(data)
 
         st.divider()
 
@@ -689,16 +802,12 @@ def show_live_match():
 
         st.divider()
 
-        # ----------------------------------------------------
-        # REFRESH
-        # ----------------------------------------------------
-
         refresh_time = datetime.now().strftime(
             "%H:%M:%S"
         )
 
         st.caption(
-            f"🔄 Refresh manually to get latest data"
+            "🔄 Refresh manually to get latest data"
             f" | Last refresh: {refresh_time}"
         )
 
@@ -873,15 +982,11 @@ def show_commentary(data):
 
         if team_name:
 
-            prefix += (
-                f"**{team_name}** "
-            )
+            prefix += f"**{team_name}** "
 
         if innings_id:
 
-            prefix += (
-                f"(Innings {innings_id}) "
-            )
+            prefix += f"(Innings {innings_id}) "
 
         st.write(
             f"• {prefix}{text}"
@@ -1006,9 +1111,7 @@ def show_commentary_page():
             selected_match_id
         )
 
-        show_commentary(
-            data
-        )
+        show_commentary(data)
 
     except Exception as e:
 
@@ -1041,9 +1144,7 @@ def show_innings_page():
             selected_match_id
         )
 
-        show_innings_summary(
-            mini
-        )
+        show_innings_summary(mini)
 
     except Exception as e:
 
@@ -1102,10 +1203,6 @@ def show_analytics(mini):
             )
         )
 
-    # --------------------------------------------------------
-    # INNINGS CHART
-    # --------------------------------------------------------
-
     match_score_details = mini.get(
         "matchScoreDetails",
         {}
@@ -1150,10 +1247,6 @@ def show_analytics(mini):
             st.bar_chart(
                 chart_data
             )
-
-    # --------------------------------------------------------
-    # BATSMAN COMPARISON
-    # --------------------------------------------------------
 
     st.subheader(
         "🏏 Batsman Comparison"
@@ -1226,9 +1319,7 @@ def show_analytics_page():
             selected_match_id
         )
 
-        show_analytics(
-            mini
-        )
+        show_analytics(mini)
 
     except Exception as e:
 
@@ -1287,12 +1378,12 @@ st.divider()
 st.markdown(
     """
     <div class="creator-box">
-        🏏 <b>Cricbuzz LiveStats</b><br>
-        Real-Time Cricket Insights & SQL-Based Analytics<br><br>
-        👩‍💻 Created by <b>Rajeswari Rachapalli</b><br><br>
-        <span class="small-note">
-            MySQL • Python • Streamlit • Cricbuzz API
-        </span>
+    🏏 <b>Cricbuzz LiveStats</b><br>
+    Real-Time Cricket Insights & SQL-Based Analytics<br><br>
+    👩‍💻 Created by <b>Rajeswari Rachapalli</b><br><br>
+    <span class="small-note">
+    MySQL • Python • Streamlit • Cricbuzz API
+    </span>
     </div>
     """,
     unsafe_allow_html=True
