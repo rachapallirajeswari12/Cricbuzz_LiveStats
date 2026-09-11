@@ -1,7 +1,6 @@
 import streamlit as st
 from datetime import datetime
 
-from utils.db_connection import get_connection
 from utils.cricbuzz_api import (
     get_match_commentary,
     get_cricbuzz_matches
@@ -150,77 +149,30 @@ st.markdown(
 
 
 # ============================================================
-# DATABASE - COUNTS
+# DATABASE PLACEHOLDER
 # ============================================================
+# MySQL is temporarily disabled for Streamlit Cloud deployment.
+# Streamlit Cloud cannot connect to the local Windows MySQL
+# server through localhost:3306.
+#
+# The live Cricbuzz API features continue to work.
+# Database integration can be connected later using a
+# cloud-accessible database.
+
 
 def get_counts():
 
-    conn = get_connection()
-    cursor = conn.cursor(dictionary=True)
-
-    queries = {
-        "matches": "SELECT COUNT(*) AS total FROM matches",
-        "players": "SELECT COUNT(*) AS total FROM players",
-        "teams": "SELECT COUNT(*) AS total FROM teams",
-        "venues": "SELECT COUNT(*) AS total FROM venues"
+    return {
+        "matches": 0,
+        "players": 0,
+        "teams": 0,
+        "venues": 0
     }
 
-    results = {}
-
-    try:
-
-        for key, query in queries.items():
-
-            cursor.execute(query)
-
-            row = cursor.fetchone()
-
-            if row:
-                results[key] = row["total"]
-            else:
-                results[key] = 0
-
-    finally:
-
-        cursor.close()
-        conn.close()
-
-    return results
-
-
-# ============================================================
-# DATABASE - RECENT MATCHES
-# ============================================================
 
 def get_recent_matches():
 
-    conn = get_connection()
-
-    query = """
-        SELECT
-            m.match_id,
-            m.description,
-            m.match_date,
-            m.status,
-            w.team_name AS winner
-        FROM matches m
-        LEFT JOIN teams w
-            ON m.winner_team_id = w.team_id
-        ORDER BY m.match_date DESC
-    """
-
-    cursor = conn.cursor(dictionary=True)
-
-    try:
-
-        cursor.execute(query)
-
-        return cursor.fetchall()
-
-    finally:
-
-        cursor.close()
-        conn.close()
+    return []
 
 
 # ============================================================
@@ -364,7 +316,8 @@ def show_dashboard():
     else:
 
         st.info(
-            "No match data available."
+            "Database match data is temporarily unavailable. "
+            "Live Cricbuzz data is available in Live Match Center."
         )
 
 
@@ -394,7 +347,8 @@ def show_recent_matches():
     else:
 
         st.info(
-            "No match data available."
+            "Database match data is temporarily unavailable. "
+            "Please use Live Match Center for live Cricbuzz data."
         )
 
 
@@ -744,7 +698,7 @@ def show_live_match():
         )
 
         st.caption(
-            f"🔄 Auto-refresh every 10 seconds"
+            f"🔄 Refresh manually to get latest data"
             f" | Last refresh: {refresh_time}"
         )
 
@@ -860,10 +814,23 @@ def show_commentary(data):
 
     commentary_list = []
 
-    for item in commentary_items.values():
+    if isinstance(commentary_items, dict):
+
+        commentary_values = commentary_items.values()
+
+    elif isinstance(commentary_items, list):
+
+        commentary_values = commentary_items
+
+    else:
+
+        commentary_values = []
+
+    for item in commentary_values:
 
         if (
-            item.get("commType") == "commentary"
+            isinstance(item, dict)
+            and item.get("commType") == "commentary"
             and item.get("commText")
         ):
 
