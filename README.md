@@ -558,3 +558,35 @@ Streamlit Cloud
 
 Cricket Analytics Dashboard
 
+---
+
+## 🏗️ System Architecture
+
+```text
+                    ┌─────────────────────┐
+                    │        User         │
+                    └──────────┬──────────┘
+                               │
+                               ▼
+                    ┌─────────────────────┐
+                    │ Streamlit Dashboard │
+                    │       main.py       │
+                    └────────┬─────┬──────┘
+                             │     │
+                 ┌───────────┘     └────────────┐
+                 ▼                              ▼
+        ┌──────────────────┐          ┌──────────────────┐
+        │   Cricbuzz API   │          │   MySQL Database │
+        │                  │          │                  │
+        │ Live Scores      │          │ 15 Relational   │
+        │ Commentary       │          │ Tables           │
+        │ Match Data       │          │ Cricket Data     │
+        └──────────────────┘          └────────┬─────────┘
+                                               │
+                                               ▼
+                                  ┌────────────────────────┐
+                                  │ SQL Analytics           │
+                                  │ CRUD Operations         │
+                                  │ Player Statistics       │
+                                  │ Match Analytics         │
+                                  └────────────────────────┘
