@@ -9,7 +9,7 @@ from utils.cricbuzz_api import (
 
 
 # ============================================================
-# PAGE CONFIGURATION
+# PAGE CONFIG
 # ============================================================
 
 st.set_page_config(
@@ -27,40 +27,66 @@ st.set_page_config(
 st.markdown(
     """
     <style>
-        .main-title {
-            font-size: 42px;
-            font-weight: 800;
-            margin-bottom: 5px;
-        }
 
-        .sub-title {
-            font-size: 18px;
-            margin-bottom: 20px;
-        }
+    .main-title {
+        font-size: 42px;
+        font-weight: 800;
+        margin-bottom: 5px;
+    }
 
-        .title-bar {
-            padding: 10px 14px;
-            border-radius: 10px;
-            font-size: 23px;
-            font-weight: 700;
-            margin-top: 12px;
-            margin-bottom: 15px;
-            border: 1px solid rgba(128, 128, 128, 0.25);
-        }
+    .sub-title {
+        font-size: 18px;
+        margin-bottom: 20px;
+        opacity: 0.80;
+    }
 
-        .creator-box {
-            padding: 18px;
-            border-radius: 12px;
-            text-align: center;
-            border: 1px solid rgba(128, 128, 128, 0.25);
-            margin-top: 20px;
-            margin-bottom: 10px;
-        }
+    .title-bar {
+        padding: 12px 16px;
+        border-radius: 10px;
+        font-size: 23px;
+        font-weight: 700;
+        margin-top: 12px;
+        margin-bottom: 18px;
+        border: 1px solid rgba(128,128,128,0.25);
+    }
 
-        .small-note {
-            font-size: 13px;
-            opacity: 0.75;
-        }
+    .creator-box {
+        padding: 18px;
+        border-radius: 12px;
+        text-align: center;
+        border: 1px solid rgba(128,128,128,0.25);
+        margin-top: 20px;
+        margin-bottom: 10px;
+    }
+
+    .small-note {
+        font-size: 13px;
+        opacity: 0.75;
+    }
+
+    section[data-testid="stSidebar"] {
+        border-right: 1px solid rgba(128,128,128,0.20);
+    }
+
+    section[data-testid="stSidebar"]
+    div[role="radiogroup"] {
+        gap: 5px;
+    }
+
+    section[data-testid="stSidebar"]
+    div[role="radiogroup"] label {
+        padding: 10px 12px;
+        border-radius: 9px;
+        cursor: pointer;
+        font-size: 15px;
+        font-weight: 600;
+    }
+
+    section[data-testid="stSidebar"]
+    div[role="radiogroup"] label:hover {
+        background-color: rgba(128,128,128,0.15);
+    }
+
     </style>
     """,
     unsafe_allow_html=True
@@ -76,17 +102,28 @@ st.sidebar.title("🏏 Cricbuzz LiveStats")
 st.sidebar.markdown("---")
 
 st.sidebar.header("📊 Dashboard")
-st.sidebar.markdown("🏏 **Live Match Center**")
-st.sidebar.markdown("📋 **Recent Matches**")
-st.sidebar.markdown("💬 **Commentary**")
-st.sidebar.markdown("📊 **Innings Summary**")
-st.sidebar.markdown("🎯 **Bowling**")
-st.sidebar.markdown("📈 **Analytics**")
+
+selected_section = st.sidebar.radio(
+    "Navigate",
+    [
+        "🏠 Dashboard Overview",
+        "🏏 Live Match Center",
+        "📋 Recent Matches",
+        "💬 Commentary",
+        "📊 Innings Summary",
+        "🎯 Bowling",
+        "📈 Analytics"
+    ],
+    label_visibility="collapsed"
+)
 
 st.sidebar.markdown("---")
 
 st.sidebar.header("👩‍💻 Created By")
-st.sidebar.success("Rajeswari Rachapalli")
+
+st.sidebar.success(
+    "Rajeswari Rachapalli"
+)
 
 st.sidebar.markdown("---")
 
@@ -113,10 +150,11 @@ st.markdown(
 
 
 # ============================================================
-# MYSQL - GET DASHBOARD COUNTS
+# DATABASE - COUNTS
 # ============================================================
 
 def get_counts():
+
     conn = get_connection()
     cursor = conn.cursor(dictionary=True)
 
@@ -130,12 +168,20 @@ def get_counts():
     results = {}
 
     try:
+
         for key, query in queries.items():
+
             cursor.execute(query)
+
             row = cursor.fetchone()
-            results[key] = row["total"] if row else 0
+
+            if row:
+                results[key] = row["total"]
+            else:
+                results[key] = 0
 
     finally:
+
         cursor.close()
         conn.close()
 
@@ -143,10 +189,11 @@ def get_counts():
 
 
 # ============================================================
-# MYSQL - GET RECENT MATCHES
+# DATABASE - RECENT MATCHES
 # ============================================================
 
 def get_recent_matches():
+
     conn = get_connection()
 
     query = """
@@ -165,29 +212,34 @@ def get_recent_matches():
     cursor = conn.cursor(dictionary=True)
 
     try:
+
         cursor.execute(query)
+
         return cursor.fetchall()
 
     finally:
+
         cursor.close()
         conn.close()
 
 
 # ============================================================
-# CRICBUZZ - GET SELECTED MATCH DATA
+# CRICBUZZ - GET MATCH DATA
 # ============================================================
 
-def get_match_score(api_match_id):
-    data = get_match_commentary(api_match_id)
+def get_match_score(match_id):
+
+    data = get_match_commentary(match_id)
 
     mini = data.get("miniscore", {})
+
     header = data.get("matchHeader", {})
 
     return data, mini, header
 
 
 # ============================================================
-# TEAM NAME HELPER
+# TEAM NAME
 # ============================================================
 
 def get_team_name(team_data):
@@ -204,17 +256,60 @@ def get_team_name(team_data):
 
 
 # ============================================================
-# MAIN DASHBOARD
+# CRICBUZZ MATCH SELECTOR
 # ============================================================
 
-try:
+def get_selected_match():
 
-    # ========================================================
-    # DASHBOARD OVERVIEW
-    # ========================================================
+    try:
+
+        matches = get_cricbuzz_matches()
+
+    except Exception as e:
+
+        st.warning(
+            f"Unable to load Cricbuzz matches: {e}"
+        )
+
+        return None
+
+    if not matches:
+
+        st.warning(
+            "No Cricbuzz matches found."
+        )
+
+        return None
+
+    match_options = {}
+
+    for match in matches:
+
+        label = (
+            f"{match['title']} "
+            f"({match['match_id']})"
+        )
+
+        match_options[label] = match["match_id"]
+
+    selected_label = st.selectbox(
+        "Choose a match",
+        list(match_options.keys())
+    )
+
+    return match_options[selected_label]
+
+
+# ============================================================
+# DASHBOARD OVERVIEW
+# ============================================================
+
+def show_dashboard():
 
     st.markdown(
-        '<div class="title-bar">📊 Dashboard Overview</div>',
+        '<div class="title-bar">'
+        '📊 Dashboard Overview'
+        '</div>',
         unsafe_allow_html=True
     )
 
@@ -223,769 +318,994 @@ try:
     col1, col2, col3, col4 = st.columns(4)
 
     with col1:
+
         st.metric(
             "🏏 Total Matches",
             counts["matches"]
         )
 
     with col2:
+
         st.metric(
             "👤 Total Players",
             counts["players"]
         )
 
     with col3:
+
         st.metric(
             "🏆 Total Teams",
             counts["teams"]
         )
 
     with col4:
+
         st.metric(
             "🏟️ Total Venues",
             counts["venues"]
         )
 
-
     st.divider()
 
+    st.subheader(
+        "📋 Recent Matches"
+    )
 
-    # ========================================================
-    # RECENT MATCHES
-    # ========================================================
+    recent_matches = get_recent_matches()
+
+    if recent_matches:
+
+        st.dataframe(
+            recent_matches,
+            use_container_width=True,
+            hide_index=True
+        )
+
+    else:
+
+        st.info(
+            "No match data available."
+        )
+
+
+# ============================================================
+# RECENT MATCHES
+# ============================================================
+
+def show_recent_matches():
 
     st.markdown(
-        '<div class="title-bar">📋 Recent Matches</div>',
+        '<div class="title-bar">'
+        '📋 Recent Matches'
+        '</div>',
         unsafe_allow_html=True
     )
 
     recent_matches = get_recent_matches()
 
     if recent_matches:
+
         st.dataframe(
             recent_matches,
             use_container_width=True,
             hide_index=True
         )
+
     else:
-        st.info("No match data available.")
+
+        st.info(
+            "No match data available."
+        )
 
 
-    st.divider()
+# ============================================================
+# LIVE MATCH CENTER
+# ============================================================
 
-
-    # ========================================================
-    # CRICBUZZ MATCH CENTER
-    # ========================================================
+def show_live_match():
 
     st.markdown(
-        '<div class="title-bar">🌐 Cricbuzz Match Center</div>',
+        '<div class="title-bar">'
+        '🏏 Live Match Center'
+        '</div>',
         unsafe_allow_html=True
     )
 
-    try:
-        cricbuzz_matches = get_cricbuzz_matches()
+    selected_match_id = get_selected_match()
 
-    except Exception as e:
-        cricbuzz_matches = []
-        st.warning(
-            f"Unable to load Cricbuzz matches: {e}"
+    if not selected_match_id:
+        return
+
+    try:
+
+        data, mini, header = get_match_score(
+            selected_match_id
         )
 
+        if not mini:
 
-    if not cricbuzz_matches:
-
-        st.warning("No Cricbuzz matches found.")
-
-    else:
-
-        match_options = {}
-
-        for match in cricbuzz_matches:
-
-            label = (
-                f"{match['title']} "
-                f"({match['match_id']})"
+            st.warning(
+                "No score data available."
             )
 
-            match_options[label] = match["match_id"]
+            return
 
+        # ----------------------------------------------------
+        # TEAMS
+        # ----------------------------------------------------
 
-        selected_label = st.selectbox(
-            "Choose a match",
-            list(match_options.keys())
+        team1 = header.get("team1", {})
+        team2 = header.get("team2", {})
+
+        team1_name = get_team_name(team1)
+        team2_name = get_team_name(team2)
+
+        st.markdown(
+            f"### 🏏 {team1_name} vs {team2_name}"
         )
 
-        selected_match_id = match_options[
-            selected_label
-        ]
+        # ----------------------------------------------------
+        # STATUS
+        # ----------------------------------------------------
 
+        status = (
+            mini.get("status")
+            or header.get("status")
+            or "Status unavailable"
+        )
+
+        match_score_details = mini.get(
+            "matchScoreDetails",
+            {}
+        )
+
+        match_state = str(
+            match_score_details.get(
+                "state",
+                header.get("state", "")
+            )
+        ).lower()
+
+        if match_state == "complete":
+
+            st.success(
+                f"✅ COMPLETED — {status}"
+            )
+
+        elif "live" in status.lower():
+
+            st.error("🔴 LIVE")
+            st.info(status)
+
+        else:
+
+            st.info(
+                f"📢 {status}"
+            )
 
         st.divider()
 
+        # ----------------------------------------------------
+        # CURRENT SCORE
+        # ----------------------------------------------------
 
-        # ====================================================
-        # AUTO REFRESH MATCH SECTION
-        # ====================================================
+        bat_team = mini.get(
+            "batTeam",
+            {}
+        )
 
-        @st.fragment(run_every="10s")
-        def show_live_match():
+        score = (
+            f"{bat_team.get('teamScore', 0)}"
+            f"/"
+            f"{bat_team.get('teamWkts', 0)}"
+        )
 
-            st.markdown(
-                '<div class="title-bar">'
-                '🏏 Selected Match Score'
-                '</div>',
-                unsafe_allow_html=True
+        overs = mini.get(
+            "overs",
+            0
+        )
+
+        run_rate = mini.get(
+            "currentRunRate",
+            0
+        )
+
+        batting_team = (
+            bat_team.get("teamName")
+            or bat_team.get("shortName")
+            or "Unknown"
+        )
+
+        col1, col2, col3, col4 = st.columns(4)
+
+        with col1:
+
+            st.metric(
+                "Current Score",
+                score
             )
 
-            try:
+        with col2:
 
-                data, mini, header = get_match_score(
-                    selected_match_id
+            st.metric(
+                "Overs",
+                overs
+            )
+
+        with col3:
+
+            st.metric(
+                "Run Rate",
+                run_rate
+            )
+
+        with col4:
+
+            st.metric(
+                "Batting Team",
+                batting_team
+            )
+
+        st.divider()
+
+        # ----------------------------------------------------
+        # BATTING
+        # ----------------------------------------------------
+
+        st.subheader(
+            "🏏 Batting"
+        )
+
+        striker = mini.get(
+            "batsmanStriker",
+            {}
+        )
+
+        non_striker = mini.get(
+            "batsmanNonStriker",
+            {}
+        )
+
+        bat_col1, bat_col2 = st.columns(2)
+
+        with bat_col1:
+
+            st.write(
+                f"**⭐ {striker.get('name', 'N/A')}**"
+            )
+
+            st.write(
+                f"Runs: **{striker.get('runs', 0)}**"
+            )
+
+            st.write(
+                f"Balls: **{striker.get('balls', 0)}**"
+            )
+
+            st.write(
+                f"4s: **{striker.get('fours', 0)}** | "
+                f"6s: **{striker.get('sixes', 0)}** | "
+                f"SR: **{striker.get('strikeRate', '0.00')}**"
+            )
+
+        with bat_col2:
+
+            if non_striker.get("name"):
+
+                st.write(
+                    f"**{non_striker.get('name')}**"
                 )
 
-                if not mini:
-                    st.warning(
-                        "No score data available for this match."
-                    )
-                    return
-
-
-                # =================================================
-                # TEAM INFORMATION
-                # =================================================
-
-                team1 = header.get(
-                    "team1",
-                    {}
+                st.write(
+                    f"Runs: **{non_striker.get('runs', 0)}**"
                 )
 
-                team2 = header.get(
-                    "team2",
-                    {}
+                st.write(
+                    f"Balls: **{non_striker.get('balls', 0)}**"
                 )
 
-                team1_name = get_team_name(
-                    team1
+                st.write(
+                    f"4s: **{non_striker.get('fours', 0)}** | "
+                    f"6s: **{non_striker.get('sixes', 0)}** | "
+                    f"SR: **{non_striker.get('strikeRate', '0.00')}**"
                 )
 
-                team2_name = get_team_name(
-                    team2
+            else:
+
+                st.info(
+                    "Non-striker information unavailable."
                 )
 
+        st.divider()
 
-                # =================================================
-                # MATCH TITLE
-                # =================================================
+        # ----------------------------------------------------
+        # BOWLING
+        # ----------------------------------------------------
 
-                st.markdown(
-                    f"### 🏏 {team1_name} vs {team2_name}"
-                )
+        st.subheader(
+            "🎯 Bowling"
+        )
+
+        bowler = mini.get(
+            "bowlerStriker",
+            {}
+        )
+
+        bowl_col1, bowl_col2 = st.columns(2)
+
+        with bowl_col1:
+
+            st.write(
+                f"**{bowler.get('name', 'N/A')}**"
+            )
+
+            st.write(
+                f"Overs: **{bowler.get('overs', 0)}**"
+            )
+
+            st.write(
+                f"Runs: **{bowler.get('runs', 0)}**"
+            )
+
+        with bowl_col2:
+
+            st.write(
+                f"Wickets: **{bowler.get('wickets', 0)}**"
+            )
+
+            st.write(
+                f"Maidens: **{bowler.get('maidens', 0)}**"
+            )
+
+            st.write(
+                f"Economy: **{bowler.get('economy', 0)}**"
+            )
+
+        st.divider()
+
+        # ----------------------------------------------------
+        # INNINGS SUMMARY
+        # ----------------------------------------------------
+
+        show_innings_summary(
+            mini
+        )
+
+        st.divider()
+
+        # ----------------------------------------------------
+        # ANALYTICS
+        # ----------------------------------------------------
+
+        show_analytics(
+            mini
+        )
+
+        st.divider()
+
+        # ----------------------------------------------------
+        # COMMENTARY
+        # ----------------------------------------------------
+
+        show_commentary(
+            data
+        )
+
+        st.divider()
+
+        # ----------------------------------------------------
+        # LAST WICKET
+        # ----------------------------------------------------
+
+        last_wicket = mini.get(
+            "lastWicket",
+            ""
+        )
+
+        if last_wicket:
+
+            st.subheader(
+                "🔴 Last Wicket"
+            )
+
+            st.warning(
+                last_wicket
+            )
+
+        st.divider()
+
+        # ----------------------------------------------------
+        # RECENT OVERS
+        # ----------------------------------------------------
+
+        recent_overs = mini.get(
+            "recentOvsStats",
+            ""
+        )
+
+        if recent_overs:
+
+            st.subheader(
+                "🏏 Recent Overs"
+            )
+
+            st.write(
+                recent_overs
+            )
+
+        st.divider()
+
+        # ----------------------------------------------------
+        # REFRESH
+        # ----------------------------------------------------
+
+        refresh_time = datetime.now().strftime(
+            "%H:%M:%S"
+        )
+
+        st.caption(
+            f"🔄 Auto-refresh every 10 seconds"
+            f" | Last refresh: {refresh_time}"
+        )
+
+    except Exception as e:
+
+        st.error(
+            f"Unable to fetch Cricbuzz score: {e}"
+        )
 
 
-                # =================================================
-                # MATCH STATUS
-                # =================================================
+# ============================================================
+# INNINGS SUMMARY
+# ============================================================
 
-                status = (
-                    mini.get("status")
-                    or header.get("status")
-                    or "Status unavailable"
-                )
+def show_innings_summary(mini):
 
-                match_score_details = mini.get(
-                    "matchScoreDetails",
-                    {}
-                )
+    st.markdown(
+        '<div class="title-bar">'
+        '📊 Innings Summary'
+        '</div>',
+        unsafe_allow_html=True
+    )
 
-                match_state = str(
-                    match_score_details.get(
-                        "state",
-                        header.get("state", "")
-                    )
-                ).lower()
+    match_score_details = mini.get(
+        "matchScoreDetails",
+        {}
+    )
 
+    innings_list = match_score_details.get(
+        "inningsScoreList",
+        []
+    )
 
-                if match_state == "complete":
+    if not innings_list:
 
-                    st.success(
-                        f"✅ COMPLETED — {status}"
-                    )
+        st.info(
+            "Innings information unavailable."
+        )
 
-                elif "live" in status.lower():
+        return
 
-                    st.error("🔴 LIVE")
+    innings_rows = []
 
-                    st.info(status)
+    for innings in innings_list:
 
-                else:
+        innings_rows.append(
+            {
+                "Innings": innings.get(
+                    "inningsId",
+                    ""
+                ),
 
-                    st.info(
-                        f"📢 {status}"
-                    )
+                "Team": innings.get(
+                    "batTeamName",
+                    ""
+                ),
 
-
-                # =================================================
-                # CURRENT SCORE
-                # =================================================
-
-                bat_team = mini.get(
-                    "batTeam",
-                    {}
-                )
-
-                current_score = (
-                    f"{bat_team.get('teamScore', 0)}"
+                "Score": (
+                    f"{innings.get('score', 0)}"
                     f"/"
-                    f"{bat_team.get('teamWkts', 0)}"
-                )
+                    f"{innings.get('wickets', 0)}"
+                ),
 
-                current_overs = mini.get(
+                "Overs": innings.get(
+                    "overs",
+                    0
+                ),
+
+                "Declared": (
+                    "Yes"
+                    if innings.get(
+                        "isDeclared",
+                        False
+                    )
+                    else "No"
+                ),
+
+                "Follow-On": (
+                    "Yes"
+                    if innings.get(
+                        "isFollowOn",
+                        False
+                    )
+                    else "No"
+                )
+            }
+        )
+
+    st.dataframe(
+        innings_rows,
+        use_container_width=True,
+        hide_index=True
+    )
+
+
+# ============================================================
+# COMMENTARY
+# ============================================================
+
+def show_commentary(data):
+
+    st.markdown(
+        '<div class="title-bar">'
+        '💬 Latest Commentary'
+        '</div>',
+        unsafe_allow_html=True
+    )
+
+    commentary_items = data.get(
+        "matchCommentary",
+        {}
+    )
+
+    commentary_list = []
+
+    for item in commentary_items.values():
+
+        if (
+            item.get("commType") == "commentary"
+            and item.get("commText")
+        ):
+
+            commentary_list.append(item)
+
+    commentary_list.sort(
+        key=lambda x: x.get(
+            "timestamp",
+            0
+        ),
+        reverse=True
+    )
+
+    if not commentary_list:
+
+        st.info(
+            "No commentary available."
+        )
+
+        return
+
+    for item in commentary_list[:10]:
+
+        team_name = item.get(
+            "teamName",
+            ""
+        )
+
+        innings_id = item.get(
+            "inningsId",
+            ""
+        )
+
+        text = item.get(
+            "commText",
+            ""
+        )
+
+        prefix = ""
+
+        if team_name:
+
+            prefix += (
+                f"**{team_name}** "
+            )
+
+        if innings_id:
+
+            prefix += (
+                f"(Innings {innings_id}) "
+            )
+
+        st.write(
+            f"• {prefix}{text}"
+        )
+
+
+# ============================================================
+# BOWLING PAGE
+# ============================================================
+
+def show_bowling_page():
+
+    st.markdown(
+        '<div class="title-bar">'
+        '🎯 Bowling'
+        '</div>',
+        unsafe_allow_html=True
+    )
+
+    selected_match_id = get_selected_match()
+
+    if not selected_match_id:
+        return
+
+    try:
+
+        data, mini, header = get_match_score(
+            selected_match_id
+        )
+
+        st.subheader(
+            "🎯 Current Bowler"
+        )
+
+        bowler = mini.get(
+            "bowlerStriker",
+            {}
+        )
+
+        col1, col2, col3, col4 = st.columns(4)
+
+        with col1:
+
+            st.metric(
+                "Bowler",
+                bowler.get(
+                    "name",
+                    "N/A"
+                )
+            )
+
+        with col2:
+
+            st.metric(
+                "Overs",
+                bowler.get(
                     "overs",
                     0
                 )
+            )
 
-                current_run_rate = mini.get(
-                    "currentRunRate",
-                    0
-                )
+        with col3:
 
-
-                # =================================================
-                # BATTING TEAM NAME
-                # =================================================
-
-                batting_team_name = (
-                    bat_team.get("teamName")
-                    or bat_team.get("shortName")
-                )
-
-
-                if not batting_team_name:
-
-                    bat_team_id = bat_team.get(
-                        "teamId",
-                        ""
-                    )
-
-                    if str(bat_team_id) == str(
-                        team1.get("id", "")
-                    ):
-
-                        batting_team_name = team1_name
-
-                    elif str(bat_team_id) == str(
-                        team2.get("id", "")
-                    ):
-
-                        batting_team_name = team2_name
-
-                    else:
-
-                        batting_team_name = (
-                            f"Team {bat_team_id}"
-                        )
-
-
-                # =================================================
-                # SCORE CARDS
-                # =================================================
-
-                col1, col2, col3, col4 = st.columns(4)
-
-                with col1:
-                    st.metric(
-                        "Current Score",
-                        current_score
-                    )
-
-                with col2:
-                    st.metric(
-                        "Overs",
-                        current_overs
-                    )
-
-                with col3:
-                    st.metric(
-                        "Run Rate",
-                        current_run_rate
-                    )
-
-                with col4:
-                    st.metric(
-                        "Batting Team",
-                        batting_team_name
-                    )
-
-
-                st.divider()
-
-
-                # =================================================
-                # BATTING
-                # =================================================
-
-                st.subheader("🏏 Batting")
-
-                striker = mini.get(
-                    "batsmanStriker",
-                    {}
-                )
-
-                non_striker = mini.get(
-                    "batsmanNonStriker",
-                    {}
-                )
-
-                bat_col1, bat_col2 = st.columns(2)
-
-                with bat_col1:
-
-                    st.write(
-                        f"**⭐ {striker.get('name', 'N/A')}**"
-                    )
-
-                    st.write(
-                        f"Runs: **{striker.get('runs', 0)}**"
-                    )
-
-                    st.write(
-                        f"Balls: **{striker.get('balls', 0)}**"
-                    )
-
-                    st.write(
-                        f"4s: **{striker.get('fours', 0)}** | "
-                        f"6s: **{striker.get('sixes', 0)}** | "
-                        f"SR: **{striker.get('strikeRate', '0.00')}**"
-                    )
-
-
-                with bat_col2:
-
-                    if non_striker.get("name"):
-
-                        st.write(
-                            f"**{non_striker.get('name')}**"
-                        )
-
-                        st.write(
-                            f"Runs: **{non_striker.get('runs', 0)}**"
-                        )
-
-                        st.write(
-                            f"Balls: **{non_striker.get('balls', 0)}**"
-                        )
-
-                        st.write(
-                            f"4s: **{non_striker.get('fours', 0)}** | "
-                            f"6s: **{non_striker.get('sixes', 0)}** | "
-                            f"SR: **{non_striker.get('strikeRate', '0.00')}**"
-                        )
-
-                    else:
-
-                        st.caption(
-                            "Non-striker information unavailable."
-                        )
-
-
-                st.divider()
-
-
-                # =================================================
-                # BOWLING
-                # =================================================
-
-                st.subheader("🎯 Bowling")
-
-                bowler = mini.get(
-                    "bowlerStriker",
-                    {}
-                )
-
-                bowler_col1, bowler_col2 = st.columns(2)
-
-                with bowler_col1:
-
-                    st.write(
-                        f"**{bowler.get('name', 'N/A')}**"
-                    )
-
-                    st.write(
-                        f"Overs: **{bowler.get('overs', 0)}**"
-                    )
-
-                    st.write(
-                        f"Runs: **{bowler.get('runs', 0)}**"
-                    )
-
-
-                with bowler_col2:
-
-                    st.write(
-                        f"Wickets: **{bowler.get('wickets', 0)}**"
-                    )
-
-                    st.write(
-                        f"Maidens: **{bowler.get('maidens', 0)}**"
-                    )
-
-                    st.write(
-                        f"Economy: **{bowler.get('economy', 0)}**"
-                    )
-
-
-                st.divider()
-
-
-                # =================================================
-                # INNINGS SUMMARY
-                # =================================================
-
-                st.subheader("📊 Innings Summary")
-
-                innings_list = match_score_details.get(
-                    "inningsScoreList",
-                    []
-                )
-
-
-                if innings_list:
-
-                    innings_rows = []
-
-                    for innings in innings_list:
-
-                        innings_rows.append(
-                            {
-                                "Innings":
-                                    innings.get(
-                                        "inningsId",
-                                        ""
-                                    ),
-
-                                "Team":
-                                    innings.get(
-                                        "batTeamName",
-                                        ""
-                                    ),
-
-                                "Score":
-                                    (
-                                        f"{innings.get('score', 0)}"
-                                        f"/"
-                                        f"{innings.get('wickets', 0)}"
-                                    ),
-
-                                "Overs":
-                                    innings.get(
-                                        "overs",
-                                        0
-                                    ),
-
-                                "Declared":
-                                    (
-                                        "Yes"
-                                        if innings.get(
-                                            "isDeclared",
-                                            False
-                                        )
-                                        else "No"
-                                    ),
-
-                                "Follow-On":
-                                    (
-                                        "Yes"
-                                        if innings.get(
-                                            "isFollowOn",
-                                            False
-                                        )
-                                        else "No"
-                                    )
-                            }
-                        )
-
-
-                    st.dataframe(
-                        innings_rows,
-                        use_container_width=True,
-                        hide_index=True
-                    )
-
-                else:
-
-                    st.info(
-                        "Innings information unavailable."
-                    )
-
-
-                st.divider()
-                # =================================================
-                # ANALYTICS
-                # =================================================
-
-                st.divider()
-
-                st.markdown(
-                    '<div class="title-bar">'
-                    '📈 Match Analytics'
-                    '</div>',
-                    unsafe_allow_html=True
-                )
-
-                # ---------------------------------------------
-                # Basic match analytics
-                # ---------------------------------------------
-
-                analytics_col1, analytics_col2, analytics_col3 = st.columns(3)
-
-                with analytics_col1:
-                    st.metric(
-                        "Current Run Rate",
-                        mini.get("currentRunRate", 0)
-                    )
-
-                with analytics_col2:
-                    st.metric(
-                        "Partnership Runs",
-                        mini.get("partnerShip", {}).get("runs", 0)
-                    )
-
-                with analytics_col3:
-                    st.metric(
-                        "Partnership Balls",
-                        mini.get("partnerShip", {}).get("balls", 0)
-                    )
-
-
-                # ---------------------------------------------
-                # INNINGS SCORE CHART
-                # ---------------------------------------------
-
-                if innings_list:
-
-                    chart_data = {}
-
-                    for innings in innings_list:
-
-                        team = innings.get(
-                            "batTeamName",
-                            f"Innings {innings.get('inningsId', '')}"
-                        )
-
-                        score = innings.get(
-                            "score",
-                            0
-                        )
-
-                        chart_data[
-                            f"{team} - Innings {innings.get('inningsId', '')}"
-                        ] = score
-
-
-                    if chart_data:
-
-                        st.subheader(
-                            "📊 Runs by Innings"
-                        )
-
-                        st.bar_chart(
-                            chart_data
-                        )
-
-
-                # ---------------------------------------------
-                # BATSMAN COMPARISON
-                # ---------------------------------------------
-
-                st.subheader(
-                    "🏏 Batsman Comparison"
-                )
-
-                striker_runs = striker.get(
+            st.metric(
+                "Runs",
+                bowler.get(
                     "runs",
                     0
                 )
+            )
 
-                non_striker_runs = non_striker.get(
-                    "runs",
+        with col4:
+
+            st.metric(
+                "Wickets",
+                bowler.get(
+                    "wickets",
                     0
                 )
+            )
 
-                batsman_chart = {
-                    striker.get(
-                        "name",
-                        "Striker"
-                    ): striker_runs,
+        st.divider()
 
-                    non_striker.get(
-                        "name",
-                        "Non-Striker"
-                    ): non_striker_runs
-                }
+        st.write(
+            f"**Maidens:** "
+            f"{bowler.get('maidens', 0)}"
+        )
 
-                # Remove blank player names
-                batsman_chart = {
-                    name: runs
-                    for name, runs in batsman_chart.items()
-                    if name and name != "N/A"
-                }
+        st.write(
+            f"**Economy:** "
+            f"{bowler.get('economy', 0)}"
+        )
 
-                if batsman_chart:
+    except Exception as e:
 
-                    st.bar_chart(
-                        batsman_chart
-                    )
+        st.error(
+            f"Unable to load bowling data: {e}"
+        )
 
 
+# ============================================================
+# COMMENTARY PAGE
+# ============================================================
 
-                # =================================================
-                # LATEST COMMENTARY
-                # =================================================
+def show_commentary_page():
 
-                st.subheader(
-                    "💬 Latest Commentary"
-                )
+    st.markdown(
+        '<div class="title-bar">'
+        '💬 Commentary'
+        '</div>',
+        unsafe_allow_html=True
+    )
 
-                commentary_items = data.get(
-                    "matchCommentary",
-                    {}
-                )
+    selected_match_id = get_selected_match()
 
-                commentary_list = [
-                    item
-                    for item in commentary_items.values()
-                    if item.get("commType") == "commentary"
-                    and item.get("commText")
-                ]
+    if not selected_match_id:
+        return
 
+    try:
 
-                commentary_list.sort(
-                    key=lambda x: x.get(
-                        "timestamp",
-                        0
-                    ),
-                    reverse=True
-                )
+        data, mini, header = get_match_score(
+            selected_match_id
+        )
 
+        show_commentary(
+            data
+        )
 
-                if commentary_list:
+    except Exception as e:
 
-                    for item in commentary_list[:5]:
-
-                        team_name = item.get(
-                            "teamName",
-                            ""
-                        )
-
-                        innings_id = item.get(
-                            "inningsId",
-                            ""
-                        )
-
-                        text = item.get(
-                            "commText",
-                            ""
-                        )
-
-                        prefix = ""
-
-                        if team_name:
-                            prefix += (
-                                f"**{team_name}** "
-                            )
-
-                        if innings_id:
-                            prefix += (
-                                f"(Innings {innings_id}) "
-                            )
-
-                        st.write(
-                            f"• {prefix}{text}",
-                            unsafe_allow_html=True
-                        )
-
-                else:
-
-                    st.info(
-                        "No commentary available."
-                    )
+        st.error(
+            f"Unable to load commentary: {e}"
+        )
 
 
-                st.divider()
+# ============================================================
+# INNINGS PAGE
+# ============================================================
+
+def show_innings_page():
+
+    st.markdown(
+        '<div class="title-bar">'
+        '📊 Innings Summary'
+        '</div>',
+        unsafe_allow_html=True
+    )
+
+    selected_match_id = get_selected_match()
+
+    if not selected_match_id:
+        return
+
+    try:
+
+        data, mini, header = get_match_score(
+            selected_match_id
+        )
+
+        show_innings_summary(
+            mini
+        )
+
+    except Exception as e:
+
+        st.error(
+            f"Unable to load innings data: {e}"
+        )
 
 
-                # =================================================
-                # LAST WICKET
-                # =================================================
+# ============================================================
+# ANALYTICS
+# ============================================================
 
-                last_wicket = mini.get(
-                    "lastWicket",
-                    ""
-                )
+def show_analytics(mini):
 
-                if last_wicket:
+    st.markdown(
+        '<div class="title-bar">'
+        '📈 Match Analytics'
+        '</div>',
+        unsafe_allow_html=True
+    )
 
-                    st.subheader(
-                        "🔴 Last Wicket"
-                    )
+    col1, col2, col3 = st.columns(3)
 
-                    st.warning(
-                        last_wicket
-                    )
+    with col1:
+
+        st.metric(
+            "Current Run Rate",
+            mini.get(
+                "currentRunRate",
+                0
+            )
+        )
+
+    with col2:
+
+        partnership = mini.get(
+            "partnerShip",
+            {}
+        )
+
+        st.metric(
+            "Partnership Runs",
+            partnership.get(
+                "runs",
+                0
+            )
+        )
+
+    with col3:
+
+        st.metric(
+            "Partnership Balls",
+            partnership.get(
+                "balls",
+                0
+            )
+        )
+
+    # --------------------------------------------------------
+    # INNINGS CHART
+    # --------------------------------------------------------
+
+    match_score_details = mini.get(
+        "matchScoreDetails",
+        {}
+    )
+
+    innings_list = match_score_details.get(
+        "inningsScoreList",
+        []
+    )
+
+    if innings_list:
+
+        chart_data = {}
+
+        for innings in innings_list:
+
+            team = innings.get(
+                "batTeamName",
+                "Unknown"
+            )
+
+            score = innings.get(
+                "score",
+                0
+            )
+
+            innings_id = innings.get(
+                "inningsId",
+                ""
+            )
+
+            chart_data[
+                f"{team} - Innings {innings_id}"
+            ] = score
+
+        if chart_data:
+
+            st.subheader(
+                "📊 Runs by Innings"
+            )
+
+            st.bar_chart(
+                chart_data
+            )
+
+    # --------------------------------------------------------
+    # BATSMAN COMPARISON
+    # --------------------------------------------------------
+
+    st.subheader(
+        "🏏 Batsman Comparison"
+    )
+
+    striker = mini.get(
+        "batsmanStriker",
+        {}
+    )
+
+    non_striker = mini.get(
+        "batsmanNonStriker",
+        {}
+    )
+
+    batsman_chart = {}
+
+    striker_name = striker.get(
+        "name",
+        ""
+    )
+
+    non_striker_name = non_striker.get(
+        "name",
+        ""
+    )
+
+    if striker_name:
+
+        batsman_chart[striker_name] = striker.get(
+            "runs",
+            0
+        )
+
+    if non_striker_name:
+
+        batsman_chart[non_striker_name] = non_striker.get(
+            "runs",
+            0
+        )
+
+    if batsman_chart:
+
+        st.bar_chart(
+            batsman_chart
+        )
 
 
-                st.divider()
+# ============================================================
+# ANALYTICS PAGE
+# ============================================================
+
+def show_analytics_page():
+
+    st.markdown(
+        '<div class="title-bar">'
+        '📈 Analytics'
+        '</div>',
+        unsafe_allow_html=True
+    )
+
+    selected_match_id = get_selected_match()
+
+    if not selected_match_id:
+        return
+
+    try:
+
+        data, mini, header = get_match_score(
+            selected_match_id
+        )
+
+        show_analytics(
+            mini
+        )
+
+    except Exception as e:
+
+        st.error(
+            f"Unable to load analytics: {e}"
+        )
 
 
-                # =================================================
-                # RECENT OVERS
-                # =================================================
+# ============================================================
+# PAGE NAVIGATION
+# ============================================================
 
-                recent_overs = mini.get(
-                    "recentOvsStats",
-                    ""
-                )
+try:
 
-                if recent_overs:
+    if selected_section == "🏠 Dashboard Overview":
 
-                    st.subheader(
-                        "🏏 Recent Overs"
-                    )
+        show_dashboard()
 
-                    st.write(
-                        recent_overs
-                    )
-
-
-                # =================================================
-                # LAST REFRESH
-                # =================================================
-
-                refresh_time = datetime.now().strftime(
-                    "%H:%M:%S"
-                )
-
-                st.caption(
-                    f"🔄 Auto-refresh every 10 seconds"
-                    f" | Last refresh: {refresh_time}"
-                )
-
-
-            except Exception as e:
-
-                st.error(
-                    f"Unable to fetch Cricbuzz score: {e}"
-                )
-
-
-        # ========================================================
-        # RUN LIVE MATCH COMPONENT
-        # ========================================================
+    elif selected_section == "🏏 Live Match Center":
 
         show_live_match()
 
+    elif selected_section == "📋 Recent Matches":
+
+        show_recent_matches()
+
+    elif selected_section == "💬 Commentary":
+
+        show_commentary_page()
+
+    elif selected_section == "📊 Innings Summary":
+
+        show_innings_page()
+
+    elif selected_section == "🎯 Bowling":
+
+        show_bowling_page()
+
+    elif selected_section == "📈 Analytics":
+
+        show_analytics_page()
+
 except Exception as e:
+
     st.error(
         f"Application error: {e}"
     )
