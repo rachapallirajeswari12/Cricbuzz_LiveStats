@@ -135,20 +135,29 @@ st.markdown(
 # ============================================================
 
 def execute_select(query, params=None):
-    connection = cursor = None
+
+    connection = None
+    cursor = None
 
     try:
         connection = get_connection()
-        cursor = connection.cursor(dictionary=True)
+
+        cursor = connection.cursor(
+            dictionary=True
+        )
 
         if params:
-            cursor.execute(query, params)
+            cursor.execute(
+                query,
+                params,
+            )
         else:
             cursor.execute(query)
 
         return cursor.fetchall()
 
     finally:
+
         if cursor:
             cursor.close()
 
@@ -157,14 +166,21 @@ def execute_select(query, params=None):
 
 
 def execute_action(query, params=None):
-    connection = cursor = None
+
+    connection = None
+    cursor = None
 
     try:
+
         connection = get_connection()
+
         cursor = connection.cursor()
 
         if params:
-            cursor.execute(query, params)
+            cursor.execute(
+                query,
+                params,
+            )
         else:
             cursor.execute(query)
 
@@ -214,7 +230,9 @@ def get_counts():
 
     except Exception as e:
 
-        st.warning(f"Database connection error: {e}")
+        st.warning(
+            f"Database connection error: {e}"
+        )
 
         return {
             "matches": 0,
@@ -244,7 +262,9 @@ def get_recent_matches():
 
     except Exception as e:
 
-        st.warning(f"Unable to load recent matches: {e}")
+        st.warning(
+            f"Unable to load recent matches: {e}"
+        )
 
         return []
 
@@ -255,18 +275,65 @@ def get_recent_matches():
 
 def get_match_score(match_id):
 
-    data = get_match_commentary(match_id)
+    try:
+
+        data = get_match_commentary(
+            match_id
+        )
+
+    except Exception as e:
+
+        st.warning(
+            f"Unable to load Cricbuzz data: {e}"
+        )
+
+        return {}, {}, {}
+
+    if not isinstance(
+        data,
+        dict,
+    ):
+
+        return {}, {}, {}
+
+    mini = (
+        data.get("miniscore")
+        or {}
+    )
+
+    header = (
+        data.get("matchHeader")
+        or {}
+    )
+
+    if not isinstance(
+        mini,
+        dict,
+    ):
+
+        mini = {}
+
+    if not isinstance(
+        header,
+        dict,
+    ):
+
+        header = {}
 
     return (
         data,
-        data.get("miniscore", {}),
-        data.get("matchHeader", {}),
+        mini,
+        header,
     )
 
 
 def get_team_name(team_data):
 
-    if not team_data:
+    if not isinstance(
+        team_data,
+        dict,
+    ):
+
         return "Unknown"
 
     return (
@@ -274,11 +341,20 @@ def get_team_name(team_data):
         or team_data.get("shortName")
         or team_data.get("teamName")
         or team_data.get("teamSName")
-        or str(team_data.get("id", "Unknown"))
+        or str(
+            team_data.get(
+                "id",
+                "Unknown",
+            )
+        )
     )
 
 
-def get_selected_match():
+# ============================================================
+# FIXED MATCH SELECTOR
+# ============================================================
+
+def get_selected_match(selector_key="default"):
 
     try:
 
@@ -286,27 +362,103 @@ def get_selected_match():
 
     except Exception as e:
 
-        st.warning(f"Unable to load Cricbuzz matches: {e}")
+        st.warning(
+            f"Unable to load Cricbuzz matches: {e}"
+        )
 
         return None
 
     if not matches:
 
-        st.warning("No Cricbuzz matches found.")
+        st.warning(
+            "No Cricbuzz matches found."
+        )
 
         return None
 
-    options = {
-        f"{m['title']} ({m['match_id']})": m["match_id"]
-        for m in matches
+    match_records = []
+    seen_ids = set()
+
+    for index, match in enumerate(matches):
+
+        if not isinstance(
+            match,
+            dict,
+        ):
+            continue
+
+        match_id = str(
+            match.get(
+                "match_id",
+                "",
+            )
+        ).strip()
+
+        if not match_id:
+            continue
+
+        if match_id in seen_ids:
+            continue
+
+        seen_ids.add(match_id)
+
+        title = (
+            match.get("title")
+            or f"Match {index + 1}"
+        )
+
+        title = str(
+            title
+        ).strip()
+
+        match_records.append(
+            {
+                "match_id": match_id,
+                "title": title,
+            }
+        )
+
+    if not match_records:
+
+        st.warning(
+            "No valid Cricbuzz match IDs found."
+        )
+
+        return None
+
+    match_ids = [
+        item["match_id"]
+        for item in match_records
+    ]
+
+    label_map = {
+        item["match_id"]:
+            f"{item['title']} ({item['match_id']})"
+        for item in match_records
     }
 
-    label = st.selectbox(
+    # --------------------------------------------------------
+    # IMPORTANT FIX:
+    # Use stable match_id strings as selectbox options.
+    # Each page gets its own Streamlit key.
+    # --------------------------------------------------------
+
+    selected_match_id = st.selectbox(
         "Choose a match",
-        list(options.keys()),
+        match_ids,
+        format_func=lambda match_id:
+            label_map.get(
+                match_id,
+                f"Match ({match_id})"
+            ),
+        key=f"match_selector_{selector_key}",
     )
 
-    return options[label]
+    if not selected_match_id:
+
+        return None
+
+    return selected_match_id
 
 
 # ============================================================
@@ -349,7 +501,9 @@ def clean_commentary(text):
 
 def show_dashboard():
 
-    page_title("📊 Dashboard Overview")
+    page_title(
+        "📊 Dashboard Overview"
+    )
 
     counts = get_counts()
 
@@ -377,7 +531,9 @@ def show_dashboard():
 
     st.divider()
 
-    st.subheader("📋 Recent Matches")
+    st.subheader(
+        "📋 Recent Matches"
+    )
 
     rows = get_recent_matches()
 
@@ -411,7 +567,9 @@ def show_dashboard():
 
 def show_recent_matches():
 
-    page_title("📋 Recent Matches")
+    page_title(
+        "📋 Recent Matches"
+    )
 
     rows = get_recent_matches()
 
@@ -457,18 +615,55 @@ def show_recent_matches():
 
 def show_innings_summary(mini):
 
-    page_title("📊 Innings Summary")
+    page_title(
+        "📊 Innings Summary"
+    )
+
+    if not isinstance(
+        mini,
+        dict,
+    ):
+
+        st.info(
+            "Innings information is unavailable "
+            "for this match."
+        )
+
+        return
+
+    match_score_details = (
+        mini.get(
+            "matchScoreDetails"
+        )
+        or {}
+    )
+
+    if not isinstance(
+        match_score_details,
+        dict,
+    ):
+
+        match_score_details = {}
 
     innings_list = (
-        mini
-        .get("matchScoreDetails", {})
-        .get("inningsScoreList", [])
+        match_score_details.get(
+            "inningsScoreList"
+        )
+        or []
     )
+
+    if not isinstance(
+        innings_list,
+        list,
+    ):
+
+        innings_list = []
 
     if not innings_list:
 
         st.info(
-            "Innings information unavailable."
+            "Innings information unavailable "
+            "for this match."
         )
 
         return
@@ -476,6 +671,12 @@ def show_innings_summary(mini):
     rows = []
 
     for x in innings_list:
+
+        if not isinstance(
+            x,
+            dict,
+        ):
+            continue
 
         team_name = (
             x.get("batTeamName")
@@ -518,13 +719,21 @@ def show_innings_summary(mini):
             }
         )
 
-    df = pd.DataFrame(rows)
+    if not rows:
 
-    st.dataframe(
-        df,
-        use_container_width=True,
-        hide_index=True,
+        st.info(
+            "No innings records are available "
+            "for this match."
+        )
+
+        return
+
+    df = pd.DataFrame(
+        rows
     )
+
+    # Small table - simple renderer
+    st.table(df)
 
 
 # ============================================================
@@ -533,12 +742,35 @@ def show_innings_summary(mini):
 
 def show_analytics(mini):
 
-    page_title("📈 Match Analytics")
-
-    partnership = mini.get(
-        "partnerShip",
-        {},
+    page_title(
+        "📈 Match Analytics"
     )
+
+    if not isinstance(
+        mini,
+        dict,
+    ):
+
+        st.info(
+            "Analytics data is unavailable "
+            "for this match."
+        )
+
+        return
+
+    partnership = (
+        mini.get(
+            "partnerShip"
+        )
+        or {}
+    )
+
+    if not isinstance(
+        partnership,
+        dict,
+    ):
+
+        partnership = {}
 
     c1, c2, c3 = st.columns(3)
 
@@ -566,11 +798,33 @@ def show_analytics(mini):
         ),
     )
 
-    innings_list = (
-        mini
-        .get("matchScoreDetails", {})
-        .get("inningsScoreList", [])
+    match_score_details = (
+        mini.get(
+            "matchScoreDetails"
+        )
+        or {}
     )
+
+    if not isinstance(
+        match_score_details,
+        dict,
+    ):
+
+        match_score_details = {}
+
+    innings_list = (
+        match_score_details.get(
+            "inningsScoreList"
+        )
+        or []
+    )
+
+    if not isinstance(
+        innings_list,
+        list,
+    ):
+
+        innings_list = []
 
     if innings_list:
 
@@ -578,12 +832,26 @@ def show_analytics(mini):
 
         for x in innings_list:
 
+            if not isinstance(
+                x,
+                dict,
+            ):
+                continue
+
             rows.append(
                 {
                     "Team":
-                        x.get(
-                            "batTeamName",
-                            "Unknown",
+                        (
+                            x.get(
+                                "batTeamName"
+                            )
+                            or x.get(
+                                "teamName"
+                            )
+                            or x.get(
+                                "batTeamSName"
+                            )
+                            or "Unknown"
                         ),
                     "Innings":
                         x.get(
@@ -608,29 +876,47 @@ def show_analytics(mini):
                 }
             )
 
-        innings_df = pd.DataFrame(rows)
+        if rows:
 
-        if not innings_df.empty:
+            innings_df = pd.DataFrame(
+                rows
+            )
 
             st.subheader(
                 "📊 Runs by Innings"
             )
 
-            st.dataframe(
-                innings_df,
-                use_container_width=True,
-                hide_index=True,
+            st.table(
+                innings_df
             )
 
-    striker = mini.get(
-        "batsmanStriker",
-        {},
+    striker = (
+        mini.get(
+            "batsmanStriker"
+        )
+        or {}
     )
 
-    non_striker = mini.get(
-        "batsmanNonStriker",
-        {},
+    non_striker = (
+        mini.get(
+            "batsmanNonStriker"
+        )
+        or {}
     )
+
+    if not isinstance(
+        striker,
+        dict,
+    ):
+
+        striker = {}
+
+    if not isinstance(
+        non_striker,
+        dict,
+    ):
+
+        non_striker = {}
 
     batsmen = []
 
@@ -702,10 +988,10 @@ def show_analytics(mini):
             "🏏 Batsman Comparison"
         )
 
-        st.dataframe(
-            pd.DataFrame(batsmen),
-            use_container_width=True,
-            hide_index=True,
+        st.table(
+            pd.DataFrame(
+                batsmen
+            )
         )
 
 
@@ -719,16 +1005,35 @@ def show_commentary(data):
         "💬 Latest Commentary"
     )
 
-    items = data.get(
-        "matchCommentary",
-        {},
+    if not isinstance(
+        data,
+        dict,
+    ):
+
+        st.info(
+            "Commentary data is unavailable."
+        )
+
+        return
+
+    items = (
+        data.get(
+            "matchCommentary"
+        )
+        or {}
     )
 
-    if isinstance(items, dict):
+    if isinstance(
+        items,
+        dict,
+    ):
 
         values = items.values()
 
-    elif isinstance(items, list):
+    elif isinstance(
+        items,
+        list,
+    ):
 
         values = items
 
@@ -736,16 +1041,23 @@ def show_commentary(data):
 
         values = []
 
-    commentary = [
-        x
-        for x in values
+    commentary = []
+
+    for x in values:
+
+        if not isinstance(
+            x,
+            dict,
+        ):
+            continue
+
         if (
-            isinstance(x, dict)
-            and x.get("commType")
+            x.get("commType")
             == "commentary"
             and x.get("commText")
-        )
-    ]
+        ):
+
+            commentary.append(x)
 
     commentary.sort(
         key=lambda x: x.get(
@@ -809,7 +1121,9 @@ def show_live_match():
         "🏏 Live Match Center"
     )
 
-    match_id = get_selected_match()
+    match_id = get_selected_match(
+        "live_match"
+    )
 
     if not match_id:
 
@@ -826,20 +1140,39 @@ def show_live_match():
         if not mini:
 
             st.warning(
-                "No score data available."
+                "No score data available "
+                "for this match."
             )
 
             return
 
-        team1 = header.get(
-            "team1",
-            {},
+        team1 = (
+            header.get(
+                "team1"
+            )
+            or {}
         )
 
-        team2 = header.get(
-            "team2",
-            {},
+        team2 = (
+            header.get(
+                "team2"
+            )
+            or {}
         )
+
+        if not isinstance(
+            team1,
+            dict,
+        ):
+
+            team1 = {}
+
+        if not isinstance(
+            team2,
+            dict,
+        ):
+
+            team2 = {}
 
         team1_name = get_team_name(
             team1
@@ -859,19 +1192,29 @@ def show_live_match():
             or "Status unavailable"
         )
 
-        state = str(
-            mini
-            .get(
-                "matchScoreDetails",
-                {},
+        match_score_details = (
+            mini.get(
+                "matchScoreDetails"
             )
-            .get(
+            or {}
+        )
+
+        if not isinstance(
+            match_score_details,
+            dict,
+        ):
+
+            match_score_details = {}
+
+        state = str(
+            match_score_details.get(
                 "state",
                 header.get(
                     "state",
                     "",
                 ),
             )
+            or ""
         ).lower()
 
         if state == "complete":
@@ -880,11 +1223,17 @@ def show_live_match():
                 f"✅ COMPLETED — {status}"
             )
 
-        elif "live" in status.lower():
+        elif "live" in str(
+            status
+        ).lower():
 
-            st.error("🔴 LIVE")
+            st.error(
+                "🔴 LIVE"
+            )
 
-            st.info(status)
+            st.info(
+                status
+            )
 
         else:
 
@@ -892,19 +1241,37 @@ def show_live_match():
                 f"📢 {status}"
             )
 
-        bat_team = mini.get(
-            "batTeam",
-            {},
+        bat_team = (
+            mini.get(
+                "batTeam"
+            )
+            or {}
         )
+
+        bat_obj = (
+            mini.get(
+                "batTeamScoreObj"
+            )
+            or {}
+        )
+
+        if not isinstance(
+            bat_team,
+            dict,
+        ):
+
+            bat_team = {}
+
+        if not isinstance(
+            bat_obj,
+            dict,
+        ):
+
+            bat_obj = {}
 
         score = (
             f"{bat_team.get('teamScore', 0)}/"
             f"{bat_team.get('teamWkts', 0)}"
-        )
-
-        bat_obj = mini.get(
-            "batTeamScoreObj",
-            {},
         )
 
         batting_team = (
@@ -944,20 +1311,36 @@ def show_live_match():
             )
 
             id1 = (
-                team1.get("id")
-                or team1.get("teamId")
+                team1.get(
+                    "id"
+                )
+                or team1.get(
+                    "teamId"
+                )
             )
 
             id2 = (
-                team2.get("id")
-                or team2.get("teamId")
+                team2.get(
+                    "id"
+                )
+                or team2.get(
+                    "teamId"
+                )
             )
 
-            if bat_id and str(bat_id) == str(id1):
+            if (
+                bat_id
+                and str(bat_id)
+                == str(id1)
+            ):
 
                 batting_team = team1_name
 
-            elif bat_id and str(bat_id) == str(id2):
+            elif (
+                bat_id
+                and str(bat_id)
+                == str(id2)
+            ):
 
                 batting_team = team2_name
 
@@ -993,17 +1376,37 @@ def show_live_match():
         # BATTING
         # ----------------------------------------------------
 
-        st.subheader("🏏 Batting")
-
-        striker = mini.get(
-            "batsmanStriker",
-            {},
+        st.subheader(
+            "🏏 Batting"
         )
 
-        non = mini.get(
-            "batsmanNonStriker",
-            {},
+        striker = (
+            mini.get(
+                "batsmanStriker"
+            )
+            or {}
         )
+
+        non = (
+            mini.get(
+                "batsmanNonStriker"
+            )
+            or {}
+        )
+
+        if not isinstance(
+            striker,
+            dict,
+        ):
+
+            striker = {}
+
+        if not isinstance(
+            non,
+            dict,
+        ):
+
+            non = {}
 
         b1, b2 = st.columns(2)
 
@@ -1026,12 +1429,10 @@ def show_live_match():
 
         with b2:
 
-            # Non-striker information is displayed
-            # only when Cricbuzz supplies it.
             if non.get("name"):
 
                 st.write(
-                    f"**{non['name']}**"
+                    f"**{non.get('name')}**"
                 )
 
                 st.write(
@@ -1047,20 +1448,31 @@ def show_live_match():
 
             else:
 
-                # No message is displayed when
-                # Cricbuzz does not provide non-striker data.
-                pass
+                st.info(
+                    "Non-striker information unavailable."
+                )
 
         # ----------------------------------------------------
         # BOWLING
         # ----------------------------------------------------
 
-        st.subheader("🎯 Bowling")
-
-        bowler = mini.get(
-            "bowlerStriker",
-            {},
+        st.subheader(
+            "🎯 Bowling"
         )
+
+        bowler = (
+            mini.get(
+                "bowlerStriker"
+            )
+            or {}
+        )
+
+        if not isinstance(
+            bowler,
+            dict,
+        ):
+
+            bowler = {}
 
         q1, q2, q3, q4 = st.columns(4)
 
@@ -1118,9 +1530,11 @@ def show_live_match():
             data
         )
 
-        last_wicket = mini.get(
-            "lastWicket",
-            "",
+        last_wicket = (
+            mini.get(
+                "lastWicket"
+            )
+            or ""
         )
 
         if last_wicket:
@@ -1135,9 +1549,11 @@ def show_live_match():
                 )
             )
 
-        recent_overs = mini.get(
-            "recentOvsStats",
-            "",
+        recent_overs = (
+            mini.get(
+                "recentOvsStats"
+            )
+            or ""
         )
 
         if recent_overs:
@@ -1154,7 +1570,8 @@ def show_live_match():
 
         st.caption(
             "🔄 Refresh manually to get latest data | "
-            f"Last refresh: {datetime.now().strftime('%H:%M:%S')}"
+            f"Last refresh: "
+            f"{datetime.now().strftime('%H:%M:%S')}"
         )
 
     except Exception as e:
@@ -1170,27 +1587,33 @@ def show_live_match():
 
 def show_commentary_page():
 
-    page_title("💬 Commentary")
+    page_title(
+        "💬 Commentary"
+    )
 
-    match_id = get_selected_match()
+    match_id = get_selected_match(
+        "commentary_page"
+    )
 
-    if match_id:
+    if not match_id:
 
-        try:
+        return
 
-            data, _, _ = get_match_score(
-                match_id
-            )
+    try:
 
-            show_commentary(
-                data
-            )
+        data, _, _ = get_match_score(
+            match_id
+        )
 
-        except Exception as e:
+        show_commentary(
+            data
+        )
 
-            st.error(
-                f"Unable to load commentary: {e}"
-            )
+    except Exception as e:
+
+        st.error(
+            f"Unable to load commentary: {e}"
+        )
 
 
 # ============================================================
@@ -1203,25 +1626,29 @@ def show_innings_page():
         "📊 Innings Summary"
     )
 
-    match_id = get_selected_match()
+    match_id = get_selected_match(
+        "innings_page"
+    )
 
-    if match_id:
+    if not match_id:
 
-        try:
+        return
 
-            _, mini, _ = get_match_score(
-                match_id
-            )
+    try:
 
-            show_innings_summary(
-                mini
-            )
+        _, mini, _ = get_match_score(
+            match_id
+        )
 
-        except Exception as e:
+        show_innings_summary(
+            mini
+        )
 
-            st.error(
-                f"Unable to load innings data: {e}"
-            )
+    except Exception as e:
+
+        st.error(
+            f"Unable to load innings data: {e}"
+        )
 
 
 # ============================================================
@@ -1234,7 +1661,9 @@ def show_bowling_page():
         "🎯 Bowling"
     )
 
-    match_id = get_selected_match()
+    match_id = get_selected_match(
+        "bowling_page"
+    )
 
     if not match_id:
 
@@ -1246,10 +1675,28 @@ def show_bowling_page():
             match_id
         )
 
-        bowler = mini.get(
-            "bowlerStriker",
-            {},
+        if not mini:
+
+            st.info(
+                "Bowling data is currently "
+                "unavailable for this match."
+            )
+
+            return
+
+        bowler = (
+            mini.get(
+                "bowlerStriker"
+            )
+            or {}
         )
+
+        if not isinstance(
+            bowler,
+            dict,
+        ):
+
+            bowler = {}
 
         c1, c2, c3, c4 = st.columns(4)
 
@@ -1320,25 +1767,29 @@ def show_analytics_page():
         "📈 Analytics"
     )
 
-    match_id = get_selected_match()
+    match_id = get_selected_match(
+        "analytics_page"
+    )
 
-    if match_id:
+    if not match_id:
 
-        try:
+        return
 
-            _, mini, _ = get_match_score(
-                match_id
-            )
+    try:
 
-            show_analytics(
-                mini
-            )
+        _, mini, _ = get_match_score(
+            match_id
+        )
 
-        except Exception as e:
+        show_analytics(
+            mini
+        )
 
-            st.error(
-                f"Unable to load analytics: {e}"
-            )
+    except Exception as e:
+
+        st.error(
+            f"Unable to load analytics: {e}"
+        )
 
 
 # ============================================================
@@ -1475,7 +1926,9 @@ def delete_player(player_id):
         DELETE FROM players
         WHERE player_id=%s
         """,
-        (player_id,),
+        (
+            player_id,
+        ),
     )
 
 
@@ -1589,6 +2042,15 @@ def show_crud_page():
                     "Full Name is required."
                 )
 
+            elif (
+                not role_map
+                or role == "No roles available"
+            ):
+
+                st.error(
+                    "Please select a valid role."
+                )
+
             else:
 
                 ok, msg = create_player(
@@ -1640,7 +2102,9 @@ def show_crud_page():
 
         if rows:
 
-            df = pd.DataFrame(rows)
+            df = pd.DataFrame(
+                rows
+            )
 
             st.dataframe(
                 df,
@@ -1696,7 +2160,8 @@ def show_crud_page():
             return
 
         pmap = {
-            f"{p['player_id']} - {p['full_name']}": p
+            f"{p['player_id']} - {p['full_name']}":
+                p
             for p in players
         }
 
@@ -1707,7 +2172,9 @@ def show_crud_page():
 
         p = pmap[label]
 
-        role_names = list(role_map)
+        role_names = list(
+            role_map
+        )
 
         if (
             p.get("role_name")
@@ -1720,7 +2187,9 @@ def show_crud_page():
                 p["role_name"],
             )
 
-        team_names = list(team_map)
+        team_names = list(
+            team_map
+        )
 
         if (
             p.get("national_team")
@@ -1751,7 +2220,9 @@ def show_crud_page():
                 or ["No roles available"],
                 index=(
                     role_names.index(
-                        p.get("role_name")
+                        p.get(
+                            "role_name"
+                        )
                     )
                     if p.get(
                         "role_name"
@@ -1766,7 +2237,9 @@ def show_crud_page():
             ] + team_names
 
             current_team = (
-                p.get("national_team")
+                p.get(
+                    "national_team"
+                )
                 if p.get(
                     "national_team"
                 )
@@ -1825,31 +2298,39 @@ def show_crud_page():
 
         if submitted:
 
-            ok, msg = update_player(
-                p["player_id"],
-                name.strip(),
-                role_map.get(role),
-                team_map.get(team),
-                batting.strip()
-                or None,
-                bowling.strip()
-                or None,
-                api_id.strip()
-                or None,
-                active,
-            )
+            if not name.strip():
 
-            if ok:
-
-                st.success(
-                    "✅ Player updated successfully."
+                st.error(
+                    "Full Name is required."
                 )
 
             else:
 
-                st.error(
-                    f"Update failed: {msg}"
+                ok, msg = update_player(
+                    p["player_id"],
+                    name.strip(),
+                    role_map.get(role),
+                    team_map.get(team),
+                    batting.strip()
+                    or None,
+                    bowling.strip()
+                    or None,
+                    api_id.strip()
+                    or None,
+                    active,
                 )
+
+                if ok:
+
+                    st.success(
+                        "✅ Player updated successfully."
+                    )
+
+                else:
+
+                    st.error(
+                        f"Update failed: {msg}"
+                    )
 
     # --------------------------------------------------------
     # DELETE
@@ -1942,7 +2423,8 @@ def show_top_player_stats():
         "from the MySQL performance tables."
     )
 
-    connection = cursor = None
+    connection = None
+    cursor = None
 
     try:
 
@@ -1996,7 +2478,9 @@ def show_top_player_stats():
 
         if rows:
 
-            df = pd.DataFrame(rows)
+            df = pd.DataFrame(
+                rows
+            )
 
             df = df.rename(
                 columns={
@@ -2059,7 +2543,9 @@ def show_top_player_stats():
 
         if rows:
 
-            df = pd.DataFrame(rows)
+            df = pd.DataFrame(
+                rows
+            )
 
             df = df.rename(
                 columns={
@@ -2541,12 +3027,6 @@ def show_sql_analytics_page():
     query_names = list(
         SQL_QUERIES.keys()
     )
-
-    # --------------------------------------------------------
-    # IMPORTANT:
-    # Instead of selectbox, all 25 queries are displayed
-    # vertically as a step-by-step numbered list.
-    # --------------------------------------------------------
 
     selected_query = st.radio(
         "Choose one query to execute:",
