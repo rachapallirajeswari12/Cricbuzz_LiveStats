@@ -1,97 +1,89 @@
-import streamlit as st
+import re
 from datetime import datetime
+
 import pandas as pd
+import streamlit as st
+from bs4 import BeautifulSoup
 
-from utils.cricbuzz_api import (
-    get_match_commentary,
-    get_cricbuzz_matches
-)
-
+from utils.cricbuzz_api import get_match_commentary, get_cricbuzz_matches
 from utils.db_connection import get_connection
 
-
-# ============================================================
-# PAGE CONFIG
-# ============================================================
 
 st.set_page_config(
     page_title="Cricbuzz LiveStats",
     page_icon="🏏",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="expanded",
 )
 
-
-# ============================================================
-# CUSTOM CSS
-# ============================================================
 
 st.markdown(
     """
     <style>
-
-    .main-title {
-        font-size: 42px;
-        font-weight: 800;
-        margin-bottom: 5px;
+    .main-title{
+        font-size:42px;
+        font-weight:800;
+        margin-bottom:5px
     }
 
-    .sub-title {
-        font-size: 18px;
-        margin-bottom: 20px;
-        opacity: 0.80;
+    .sub-title{
+        font-size:18px;
+        margin-bottom:20px;
+        opacity:.8
     }
 
-    .title-bar {
-        padding: 12px 16px;
-        border-radius: 10px;
-        font-size: 23px;
-        font-weight: 700;
-        margin-top: 12px;
-        margin-bottom: 18px;
-        border: 1px solid rgba(128,128,128,0.25);
+    .title-bar{
+        padding:12px 16px;
+        border-radius:10px;
+        font-size:23px;
+        font-weight:700;
+        margin:12px 0 18px;
+        border:1px solid rgba(128,128,128,.25)
     }
 
-    .creator-box {
-        padding: 18px;
-        border-radius: 12px;
-        text-align: center;
-        border: 1px solid rgba(128,128,128,0.25);
-        margin-top: 20px;
-        margin-bottom: 10px;
+    .creator-box{
+        padding:18px;
+        border-radius:12px;
+        text-align:center;
+        border:1px solid rgba(128,128,128,.25);
+        margin-top:20px;
+        margin-bottom:10px
     }
 
-    .small-note {
-        font-size: 13px;
-        opacity: 0.75;
+    .small-note{
+        font-size:13px;
+        opacity:.75
     }
 
-    section[data-testid="stSidebar"] {
-        border-right: 1px solid rgba(128,128,128,0.20);
+    section[data-testid="stSidebar"]{
+        border-right:1px solid rgba(128,128,128,.20)
     }
 
-    section[data-testid="stSidebar"]
-    div[role="radiogroup"] {
-        gap: 5px;
+    section[data-testid="stSidebar"] div[role="radiogroup"]{
+        gap:5px
     }
 
-    section[data-testid="stSidebar"]
-    div[role="radiogroup"] label {
-        padding: 10px 12px;
-        border-radius: 9px;
-        cursor: pointer;
-        font-size: 15px;
-        font-weight: 600;
+    section[data-testid="stSidebar"] div[role="radiogroup"] label{
+        padding:10px 12px;
+        border-radius:9px;
+        cursor:pointer;
+        font-size:15px;
+        font-weight:600
     }
 
-    section[data-testid="stSidebar"]
-    div[role="radiogroup"] label:hover {
-        background-color: rgba(128,128,128,0.15);
+    section[data-testid="stSidebar"] div[role="radiogroup"] label:hover{
+        background-color:rgba(128,128,128,.15)
     }
 
+    .sql-query-number{
+        font-size:18px;
+        font-weight:700;
+        margin-top:10px;
+        margin-bottom:8px
+    }
     </style>
     """,
-    unsafe_allow_html=True
+    unsafe_allow_html=True,
 )
 
 
@@ -115,51 +107,39 @@ selected_section = st.sidebar.radio(
         "📈 Analytics",
         "👤 Top Player Stats",
         "🛠️ CRUD Operations",
-        "📚 SQL Analytics"
+        "📚 SQL Analytics",
     ],
-    label_visibility="collapsed"
+    label_visibility="collapsed",
 )
 
 st.sidebar.markdown("---")
 st.sidebar.header("👩‍💻 Created By")
 st.sidebar.success("Rajeswari Rachapalli")
 st.sidebar.markdown("---")
-st.sidebar.caption(
-    "Real-Time Cricket Insights & SQL-Based Analytics"
-)
+st.sidebar.caption("Real-Time Cricket Insights & SQL-Based Analytics")
 
-
-# ============================================================
-# MAIN HEADER
-# ============================================================
 
 st.markdown(
     '<div class="main-title">🏏 Cricbuzz LiveStats</div>',
-    unsafe_allow_html=True
+    unsafe_allow_html=True,
 )
 
 st.markdown(
-    '<div class="sub-title">'
-    'Real-Time Cricket Insights & SQL-Based Analytics'
-    '</div>',
-    unsafe_allow_html=True
+    '<div class="sub-title">Real-Time Cricket Insights & SQL-Based Analytics</div>',
+    unsafe_allow_html=True,
 )
 
 
 # ============================================================
-# DATABASE HELPER
+# DATABASE HELPERS
 # ============================================================
 
 def execute_select(query, params=None):
-    connection = None
-    cursor = None
+    connection = cursor = None
 
     try:
         connection = get_connection()
-
-        cursor = connection.cursor(
-            dictionary=True
-        )
+        cursor = connection.cursor(dictionary=True)
 
         if params:
             cursor.execute(query, params)
@@ -167,9 +147,6 @@ def execute_select(query, params=None):
             cursor.execute(query)
 
         return cursor.fetchall()
-
-    except Exception as e:
-        raise e
 
     finally:
         if cursor:
@@ -180,12 +157,10 @@ def execute_select(query, params=None):
 
 
 def execute_action(query, params=None):
-    connection = None
-    cursor = None
+    connection = cursor = None
 
     try:
         connection = get_connection()
-
         cursor = connection.cursor()
 
         if params:
@@ -205,16 +180,13 @@ def execute_action(query, params=None):
         return False, str(e)
 
     finally:
+
         if cursor:
             cursor.close()
 
         if connection:
             connection.close()
 
-
-# ============================================================
-# DATABASE COUNTS
-# ============================================================
 
 def get_counts():
 
@@ -233,23 +205,24 @@ def get_counts():
         if rows:
             return rows[0]
 
+        return {
+            "matches": 0,
+            "players": 0,
+            "teams": 0,
+            "venues": 0,
+        }
+
     except Exception as e:
 
-        st.warning(
-            f"Database connection error: {e}"
-        )
+        st.warning(f"Database connection error: {e}")
 
-    return {
-        "matches": 0,
-        "players": 0,
-        "teams": 0,
-        "venues": 0
-    }
+        return {
+            "matches": 0,
+            "players": 0,
+            "teams": 0,
+            "venues": 0,
+        }
 
-
-# ============================================================
-# RECENT MATCHES
-# ============================================================
 
 def get_recent_matches():
 
@@ -271,37 +244,25 @@ def get_recent_matches():
 
     except Exception as e:
 
-        st.warning(
-            f"Unable to load recent matches: {e}"
-        )
+        st.warning(f"Unable to load recent matches: {e}")
 
         return []
 
 
 # ============================================================
-# CRICBUZZ - GET MATCH DATA
+# CRICBUZZ HELPERS
 # ============================================================
 
 def get_match_score(match_id):
 
     data = get_match_commentary(match_id)
 
-    mini = data.get(
-        "miniscore",
-        {}
+    return (
+        data,
+        data.get("miniscore", {}),
+        data.get("matchHeader", {}),
     )
 
-    header = data.get(
-        "matchHeader",
-        {}
-    )
-
-    return data, mini, header
-
-
-# ============================================================
-# TEAM NAME
-# ============================================================
 
 def get_team_name(team_data):
 
@@ -317,10 +278,6 @@ def get_team_name(team_data):
     )
 
 
-# ============================================================
-# CRICBUZZ MATCH SELECTOR
-# ============================================================
-
 def get_selected_match():
 
     try:
@@ -329,109 +286,116 @@ def get_selected_match():
 
     except Exception as e:
 
-        st.warning(
-            f"Unable to load Cricbuzz matches: {e}"
-        )
+        st.warning(f"Unable to load Cricbuzz matches: {e}")
 
         return None
 
     if not matches:
 
-        st.warning(
-            "No Cricbuzz matches found."
-        )
+        st.warning("No Cricbuzz matches found.")
 
         return None
 
-    match_options = {}
+    options = {
+        f"{m['title']} ({m['match_id']})": m["match_id"]
+        for m in matches
+    }
 
-    for match in matches:
-
-        label = (
-            f"{match['title']} "
-            f"({match['match_id']})"
-        )
-
-        match_options[label] = match["match_id"]
-
-    selected_label = st.selectbox(
+    label = st.selectbox(
         "Choose a match",
-        list(match_options.keys())
+        list(options.keys()),
     )
 
-    return match_options[selected_label]
+    return options[label]
 
 
 # ============================================================
-# DASHBOARD OVERVIEW
+# COMMON UI HELPERS
+# ============================================================
+
+def page_title(title):
+
+    st.markdown(
+        f'<div class="title-bar">{title}</div>',
+        unsafe_allow_html=True,
+    )
+
+
+def clean_commentary(text):
+
+    if not text:
+        return ""
+
+    text = BeautifulSoup(
+        str(text),
+        "html.parser",
+    ).get_text(
+        " ",
+        strip=True,
+    )
+
+    text = re.sub(
+        r"\s+",
+        " ",
+        text,
+    ).strip()
+
+    return text
+
+
+# ============================================================
+# DASHBOARD
 # ============================================================
 
 def show_dashboard():
 
-    st.markdown(
-        '<div class="title-bar">'
-        '📊 Dashboard Overview'
-        '</div>',
-        unsafe_allow_html=True
-    )
+    page_title("📊 Dashboard Overview")
 
     counts = get_counts()
 
-    col1, col2, col3, col4 = st.columns(4)
+    c1, c2, c3, c4 = st.columns(4)
 
-    with col1:
+    c1.metric(
+        "🏏 Total Matches",
+        counts["matches"],
+    )
 
-        st.metric(
-            "🏏 Total Matches",
-            counts["matches"]
-        )
+    c2.metric(
+        "👤 Total Players",
+        counts["players"],
+    )
 
-    with col2:
+    c3.metric(
+        "🏆 Total Teams",
+        counts["teams"],
+    )
 
-        st.metric(
-            "👤 Total Players",
-            counts["players"]
-        )
-
-    with col3:
-
-        st.metric(
-            "🏆 Total Teams",
-            counts["teams"]
-        )
-
-    with col4:
-
-        st.metric(
-            "🏟️ Total Venues",
-            counts["venues"]
-        )
+    c4.metric(
+        "🏟️ Total Venues",
+        counts["venues"],
+    )
 
     st.divider()
 
     st.subheader("📋 Recent Matches")
 
-    recent_matches = get_recent_matches()
+    rows = get_recent_matches()
 
-    if recent_matches:
+    if rows:
 
-        df = pd.DataFrame(recent_matches)
+        df = pd.DataFrame(rows)
 
         st.dataframe(
             df,
             use_container_width=True,
-            hide_index=True
-        )
-
-        csv_data = df.to_csv(
-            index=False
+            hide_index=True,
         )
 
         st.download_button(
             "⬇️ Download Recent Matches CSV",
-            csv_data,
+            df.to_csv(index=False),
             "recent_matches.csv",
-            "text/csv"
+            "text/csv",
         )
 
     else:
@@ -447,34 +411,37 @@ def show_dashboard():
 
 def show_recent_matches():
 
-    st.markdown(
-        '<div class="title-bar">'
-        '📋 Recent Matches'
-        '</div>',
-        unsafe_allow_html=True
-    )
+    page_title("📋 Recent Matches")
 
-    recent_matches = get_recent_matches()
+    rows = get_recent_matches()
 
-    if recent_matches:
+    if rows:
 
-        df = pd.DataFrame(recent_matches)
+        df = pd.DataFrame(rows)
+
+        rename_map = {
+            "match_id": "Match ID",
+            "description": "Match",
+            "match_date": "Date",
+            "status": "Status",
+            "api_match_id": "Cricbuzz ID",
+        }
+
+        df = df.rename(
+            columns=rename_map
+        )
 
         st.dataframe(
             df,
             use_container_width=True,
-            hide_index=True
-        )
-
-        csv_data = df.to_csv(
-            index=False
+            hide_index=True,
         )
 
         st.download_button(
             "⬇️ Download CSV",
-            csv_data,
+            df.to_csv(index=False),
             "recent_matches.csv",
-            "text/csv"
+            "text/csv",
         )
 
     else:
@@ -485,27 +452,375 @@ def show_recent_matches():
 
 
 # ============================================================
+# INNINGS SUMMARY
+# ============================================================
+
+def show_innings_summary(mini):
+
+    page_title("📊 Innings Summary")
+
+    innings_list = (
+        mini
+        .get("matchScoreDetails", {})
+        .get("inningsScoreList", [])
+    )
+
+    if not innings_list:
+
+        st.info(
+            "Innings information unavailable."
+        )
+
+        return
+
+    rows = []
+
+    for x in innings_list:
+
+        team_name = (
+            x.get("batTeamName")
+            or x.get("teamName")
+            or x.get("batTeamSName")
+            or "Unknown"
+        )
+
+        rows.append(
+            {
+                "Innings": x.get(
+                    "inningsId",
+                    "",
+                ),
+                "Team": team_name,
+                "Score": (
+                    f"{x.get('score', 0)}/"
+                    f"{x.get('wickets', 0)}"
+                ),
+                "Overs": x.get(
+                    "overs",
+                    0,
+                ),
+                "Declared": (
+                    "Yes"
+                    if x.get(
+                        "isDeclared",
+                        False,
+                    )
+                    else "No"
+                ),
+                "Follow-On": (
+                    "Yes"
+                    if x.get(
+                        "isFollowOn",
+                        False,
+                    )
+                    else "No"
+                ),
+            }
+        )
+
+    df = pd.DataFrame(rows)
+
+    st.dataframe(
+        df,
+        use_container_width=True,
+        hide_index=True,
+    )
+
+
+# ============================================================
+# MATCH ANALYTICS
+# ============================================================
+
+def show_analytics(mini):
+
+    page_title("📈 Match Analytics")
+
+    partnership = mini.get(
+        "partnerShip",
+        {},
+    )
+
+    c1, c2, c3 = st.columns(3)
+
+    c1.metric(
+        "Current Run Rate",
+        mini.get(
+            "currentRunRate",
+            0,
+        ),
+    )
+
+    c2.metric(
+        "Partnership Runs",
+        partnership.get(
+            "runs",
+            0,
+        ),
+    )
+
+    c3.metric(
+        "Partnership Balls",
+        partnership.get(
+            "balls",
+            0,
+        ),
+    )
+
+    innings_list = (
+        mini
+        .get("matchScoreDetails", {})
+        .get("inningsScoreList", [])
+    )
+
+    if innings_list:
+
+        rows = []
+
+        for x in innings_list:
+
+            rows.append(
+                {
+                    "Team":
+                        x.get(
+                            "batTeamName",
+                            "Unknown",
+                        ),
+                    "Innings":
+                        x.get(
+                            "inningsId",
+                            "",
+                        ),
+                    "Runs":
+                        x.get(
+                            "score",
+                            0,
+                        ),
+                    "Wickets":
+                        x.get(
+                            "wickets",
+                            0,
+                        ),
+                    "Overs":
+                        x.get(
+                            "overs",
+                            0,
+                        ),
+                }
+            )
+
+        innings_df = pd.DataFrame(rows)
+
+        if not innings_df.empty:
+
+            st.subheader(
+                "📊 Runs by Innings"
+            )
+
+            st.dataframe(
+                innings_df,
+                use_container_width=True,
+                hide_index=True,
+            )
+
+    striker = mini.get(
+        "batsmanStriker",
+        {},
+    )
+
+    non_striker = mini.get(
+        "batsmanNonStriker",
+        {},
+    )
+
+    batsmen = []
+
+    if striker.get("name"):
+
+        batsmen.append(
+            {
+                "Batsman":
+                    striker.get(
+                        "name"
+                    ),
+                "Runs":
+                    striker.get(
+                        "runs",
+                        0,
+                    ),
+                "Balls":
+                    striker.get(
+                        "balls",
+                        0,
+                    ),
+                "4s":
+                    striker.get(
+                        "fours",
+                        0,
+                    ),
+                "6s":
+                    striker.get(
+                        "sixes",
+                        0,
+                    ),
+            }
+        )
+
+    if non_striker.get("name"):
+
+        batsmen.append(
+            {
+                "Batsman":
+                    non_striker.get(
+                        "name"
+                    ),
+                "Runs":
+                    non_striker.get(
+                        "runs",
+                        0,
+                    ),
+                "Balls":
+                    non_striker.get(
+                        "balls",
+                        0,
+                    ),
+                "4s":
+                    non_striker.get(
+                        "fours",
+                        0,
+                    ),
+                "6s":
+                    non_striker.get(
+                        "sixes",
+                        0,
+                    ),
+            }
+        )
+
+    if batsmen:
+
+        st.subheader(
+            "🏏 Batsman Comparison"
+        )
+
+        st.dataframe(
+            pd.DataFrame(batsmen),
+            use_container_width=True,
+            hide_index=True,
+        )
+
+
+# ============================================================
+# COMMENTARY
+# ============================================================
+
+def show_commentary(data):
+
+    page_title(
+        "💬 Latest Commentary"
+    )
+
+    items = data.get(
+        "matchCommentary",
+        {},
+    )
+
+    if isinstance(items, dict):
+
+        values = items.values()
+
+    elif isinstance(items, list):
+
+        values = items
+
+    else:
+
+        values = []
+
+    commentary = [
+        x
+        for x in values
+        if (
+            isinstance(x, dict)
+            and x.get("commType")
+            == "commentary"
+            and x.get("commText")
+        )
+    ]
+
+    commentary.sort(
+        key=lambda x: x.get(
+            "timestamp",
+            0,
+        ),
+        reverse=True,
+    )
+
+    if not commentary:
+
+        st.info(
+            "No commentary available."
+        )
+
+        return
+
+    for item in commentary[:10]:
+
+        team = item.get(
+            "teamName",
+            "",
+        )
+
+        innings = item.get(
+            "inningsId",
+            "",
+        )
+
+        text = clean_commentary(
+            item.get(
+                "commText",
+                "",
+            )
+        )
+
+        prefix = (
+            f"**{team}** "
+            if team
+            else ""
+        )
+
+        if innings:
+
+            prefix += (
+                f"(Innings {innings}) "
+            )
+
+        st.markdown(
+            f"• {prefix}{text}"
+        )
+
+
+# ============================================================
 # LIVE MATCH CENTER
 # ============================================================
 
 def show_live_match():
 
-    st.markdown(
-        '<div class="title-bar">'
-        '🏏 Live Match Center'
-        '</div>',
-        unsafe_allow_html=True
+    page_title(
+        "🏏 Live Match Center"
     )
 
-    selected_match_id = get_selected_match()
+    match_id = get_selected_match()
 
-    if not selected_match_id:
+    if not match_id:
+
         return
 
     try:
 
-        data, mini, header = get_match_score(
-            selected_match_id
+        data, mini, header = (
+            get_match_score(
+                match_id
+            )
         )
 
         if not mini:
@@ -518,16 +833,21 @@ def show_live_match():
 
         team1 = header.get(
             "team1",
-            {}
+            {},
         )
 
         team2 = header.get(
             "team2",
-            {}
+            {},
         )
 
-        team1_name = get_team_name(team1)
-        team2_name = get_team_name(team2)
+        team1_name = get_team_name(
+            team1
+        )
+
+        team2_name = get_team_name(
+            team2
+        )
 
         st.markdown(
             f"### 🏏 {team1_name} vs {team2_name}"
@@ -539,19 +859,22 @@ def show_live_match():
             or "Status unavailable"
         )
 
-        match_score_details = mini.get(
-            "matchScoreDetails",
-            {}
-        )
-
-        match_state = str(
-            match_score_details.get(
+        state = str(
+            mini
+            .get(
+                "matchScoreDetails",
+                {},
+            )
+            .get(
                 "state",
-                header.get("state", "")
+                header.get(
+                    "state",
+                    "",
+                ),
             )
         ).lower()
 
-        if match_state == "complete":
+        if state == "complete":
 
             st.success(
                 f"✅ COMPLETED — {status}"
@@ -560,6 +883,7 @@ def show_live_match():
         elif "live" in status.lower():
 
             st.error("🔴 LIVE")
+
             st.info(status)
 
         else:
@@ -568,137 +892,129 @@ def show_live_match():
                 f"📢 {status}"
             )
 
-        st.divider()
-
         bat_team = mini.get(
             "batTeam",
-            {}
+            {},
         )
 
         score = (
-            f"{bat_team.get('teamScore', 0)}"
-            f"/"
+            f"{bat_team.get('teamScore', 0)}/"
             f"{bat_team.get('teamWkts', 0)}"
         )
 
-        overs = mini.get(
-            "overs",
-            0
-        )
-
-        run_rate = mini.get(
-            "currentRunRate",
-            0
-        )
-
-        bat_team_score_obj = mini.get(
+        bat_obj = mini.get(
             "batTeamScoreObj",
-            {}
+            {},
         )
 
         batting_team = (
-            bat_team_score_obj.get("teamName")
-            or bat_team_score_obj.get("teamSName")
-            or bat_team.get("teamName")
-            or bat_team.get("shortName")
-            or bat_team.get("teamSName")
+            bat_obj.get(
+                "teamName"
+            )
+            or bat_obj.get(
+                "teamSName"
+            )
+            or bat_team.get(
+                "teamName"
+            )
+            or bat_team.get(
+                "shortName"
+            )
+            or bat_team.get(
+                "teamSName"
+            )
             or "Unknown"
         )
 
         if batting_team == "Unknown":
 
-            bat_team_id = (
-                bat_team.get("teamId")
-                or bat_team.get("id")
-                or bat_team_score_obj.get("teamId")
-                or bat_team_score_obj.get("id")
+            bat_id = (
+                bat_team.get(
+                    "teamId"
+                )
+                or bat_team.get(
+                    "id"
+                )
+                or bat_obj.get(
+                    "teamId"
+                )
+                or bat_obj.get(
+                    "id"
+                )
             )
 
-            team1_id = (
+            id1 = (
                 team1.get("id")
                 or team1.get("teamId")
             )
 
-            team2_id = (
+            id2 = (
                 team2.get("id")
                 or team2.get("teamId")
             )
 
-            if (
-                bat_team_id
-                and str(bat_team_id) == str(team1_id)
-            ):
+            if bat_id and str(bat_id) == str(id1):
 
                 batting_team = team1_name
 
-            elif (
-                bat_team_id
-                and str(bat_team_id) == str(team2_id)
-            ):
+            elif bat_id and str(bat_id) == str(id2):
 
                 batting_team = team2_name
 
-            elif bat_team_id:
+        c1, c2, c3, c4 = st.columns(4)
 
-                batting_team = f"Team {bat_team_id}"
+        c1.metric(
+            "Current Score",
+            score,
+        )
 
-        col1, col2, col3, col4 = st.columns(4)
+        c2.metric(
+            "Overs",
+            mini.get(
+                "overs",
+                0,
+            ),
+        )
 
-        with col1:
+        c3.metric(
+            "Run Rate",
+            mini.get(
+                "currentRunRate",
+                0,
+            ),
+        )
 
-            st.metric(
-                "Current Score",
-                score
-            )
+        c4.metric(
+            "Batting Team",
+            batting_team,
+        )
 
-        with col2:
-
-            st.metric(
-                "Overs",
-                overs
-            )
-
-        with col3:
-
-            st.metric(
-                "Run Rate",
-                run_rate
-            )
-
-        with col4:
-
-            st.metric(
-                "Batting Team",
-                batting_team
-            )
-
-        st.divider()
+        # ----------------------------------------------------
+        # BATTING
+        # ----------------------------------------------------
 
         st.subheader("🏏 Batting")
 
         striker = mini.get(
             "batsmanStriker",
-            {}
+            {},
         )
 
-        non_striker = mini.get(
+        non = mini.get(
             "batsmanNonStriker",
-            {}
+            {},
         )
 
-        bat_col1, bat_col2 = st.columns(2)
+        b1, b2 = st.columns(2)
 
-        with bat_col1:
+        with b1:
 
             st.write(
                 f"**⭐ {striker.get('name', 'N/A')}**"
             )
 
             st.write(
-                f"Runs: **{striker.get('runs', 0)}**"
-            )
-
-            st.write(
+                f"Runs: **{striker.get('runs', 0)}** | "
                 f"Balls: **{striker.get('balls', 0)}**"
             )
 
@@ -708,122 +1024,137 @@ def show_live_match():
                 f"SR: **{striker.get('strikeRate', '0.00')}**"
             )
 
-        with bat_col2:
+        with b2:
 
-            if non_striker.get("name"):
+            # Non-striker information is displayed
+            # only when Cricbuzz supplies it.
+            if non.get("name"):
 
                 st.write(
-                    f"**{non_striker.get('name')}**"
+                    f"**{non['name']}**"
                 )
 
                 st.write(
-                    f"Runs: **{non_striker.get('runs', 0)}**"
+                    f"Runs: **{non.get('runs', 0)}** | "
+                    f"Balls: **{non.get('balls', 0)}**"
                 )
 
                 st.write(
-                    f"Balls: **{non_striker.get('balls', 0)}**"
-                )
-
-                st.write(
-                    f"4s: **{non_striker.get('fours', 0)}** | "
-                    f"6s: **{non_striker.get('sixes', 0)}** | "
-                    f"SR: **{non_striker.get('strikeRate', '0.00')}**"
+                    f"4s: **{non.get('fours', 0)}** | "
+                    f"6s: **{non.get('sixes', 0)}** | "
+                    f"SR: **{non.get('strikeRate', '0.00')}**"
                 )
 
             else:
 
-                st.info(
-                    "Non-striker information unavailable."
-                )
+                # No message is displayed when
+                # Cricbuzz does not provide non-striker data.
+                pass
 
-        st.divider()
+        # ----------------------------------------------------
+        # BOWLING
+        # ----------------------------------------------------
 
         st.subheader("🎯 Bowling")
 
         bowler = mini.get(
             "bowlerStriker",
-            {}
+            {},
         )
 
-        bowl_col1, bowl_col2 = st.columns(2)
+        q1, q2, q3, q4 = st.columns(4)
 
-        with bowl_col1:
+        q1.metric(
+            "Bowler",
+            bowler.get(
+                "name",
+                "N/A",
+            ),
+        )
 
-            st.write(
-                f"**{bowler.get('name', 'N/A')}**"
-            )
+        q2.metric(
+            "Overs",
+            bowler.get(
+                "overs",
+                0,
+            ),
+        )
 
-            st.write(
-                f"Overs: **{bowler.get('overs', 0)}**"
-            )
+        q3.metric(
+            "Runs",
+            bowler.get(
+                "runs",
+                0,
+            ),
+        )
 
-            st.write(
-                f"Runs: **{bowler.get('runs', 0)}**"
-            )
+        q4.metric(
+            "Wickets",
+            bowler.get(
+                "wickets",
+                0,
+            ),
+        )
 
-        with bowl_col2:
+        st.write(
+            f"**Maidens:** {bowler.get('maidens', 0)}"
+            f"   |   "
+            f"**Economy:** {bowler.get('economy', 0)}"
+        )
 
-            st.write(
-                f"Wickets: **{bowler.get('wickets', 0)}**"
-            )
+        # ----------------------------------------------------
+        # OTHER SECTIONS
+        # ----------------------------------------------------
 
-            st.write(
-                f"Maidens: **{bowler.get('maidens', 0)}**"
-            )
+        show_innings_summary(
+            mini
+        )
 
-            st.write(
-                f"Economy: **{bowler.get('economy', 0)}**"
-            )
+        show_analytics(
+            mini
+        )
 
-        st.divider()
-
-        show_innings_summary(mini)
-
-        st.divider()
-
-        show_analytics(mini)
-
-        st.divider()
-
-        show_commentary(data)
-
-        st.divider()
+        show_commentary(
+            data
+        )
 
         last_wicket = mini.get(
             "lastWicket",
-            ""
+            "",
         )
 
         if last_wicket:
 
-            st.subheader("🔴 Last Wicket")
+            st.subheader(
+                "🔴 Last Wicket"
+            )
 
             st.warning(
-                last_wicket
+                clean_commentary(
+                    last_wicket
+                )
             )
 
         recent_overs = mini.get(
             "recentOvsStats",
-            ""
+            "",
         )
 
         if recent_overs:
 
-            st.divider()
-
-            st.subheader("🏏 Recent Overs")
-
-            st.write(
-                recent_overs
+            st.subheader(
+                "🏏 Recent Overs"
             )
 
-        refresh_time = datetime.now().strftime(
-            "%H:%M:%S"
-        )
+            st.write(
+                clean_commentary(
+                    recent_overs
+                )
+            )
 
         st.caption(
-            "🔄 Refresh manually to get latest data"
-            f" | Last refresh: {refresh_time}"
+            "🔄 Refresh manually to get latest data | "
+            f"Last refresh: {datetime.now().strftime('%H:%M:%S')}"
         )
 
     except Exception as e:
@@ -834,173 +1165,63 @@ def show_live_match():
 
 
 # ============================================================
-# INNINGS SUMMARY
+# COMMENTARY PAGE
 # ============================================================
 
-def show_innings_summary(mini):
+def show_commentary_page():
 
-    st.markdown(
-        '<div class="title-bar">'
-        '📊 Innings Summary'
-        '</div>',
-        unsafe_allow_html=True
-    )
+    page_title("💬 Commentary")
 
-    match_score_details = mini.get(
-        "matchScoreDetails",
-        {}
-    )
+    match_id = get_selected_match()
 
-    innings_list = match_score_details.get(
-        "inningsScoreList",
-        []
-    )
+    if match_id:
 
-    if not innings_list:
+        try:
 
-        st.info(
-            "Innings information unavailable."
-        )
+            data, _, _ = get_match_score(
+                match_id
+            )
 
-        return
+            show_commentary(
+                data
+            )
 
-    innings_rows = []
+        except Exception as e:
 
-    for innings in innings_list:
-
-        innings_rows.append(
-            {
-                "Innings": innings.get(
-                    "inningsId",
-                    ""
-                ),
-                "Team": innings.get(
-                    "batTeamName",
-                    ""
-                ),
-                "Score": (
-                    f"{innings.get('score', 0)}"
-                    f"/"
-                    f"{innings.get('wickets', 0)}"
-                ),
-                "Overs": innings.get(
-                    "overs",
-                    0
-                ),
-                "Declared": (
-                    "Yes"
-                    if innings.get(
-                        "isDeclared",
-                        False
-                    )
-                    else "No"
-                ),
-                "Follow-On": (
-                    "Yes"
-                    if innings.get(
-                        "isFollowOn",
-                        False
-                    )
-                    else "No"
-                )
-            }
-        )
-
-    st.dataframe(
-        pd.DataFrame(innings_rows),
-        use_container_width=True,
-        hide_index=True
-    )
+            st.error(
+                f"Unable to load commentary: {e}"
+            )
 
 
 # ============================================================
-# COMMENTARY
+# INNINGS PAGE
 # ============================================================
 
-def show_commentary(data):
+def show_innings_page():
 
-    st.markdown(
-        '<div class="title-bar">'
-        '💬 Latest Commentary'
-        '</div>',
-        unsafe_allow_html=True
+    page_title(
+        "📊 Innings Summary"
     )
 
-    commentary_items = data.get(
-        "matchCommentary",
-        {}
-    )
+    match_id = get_selected_match()
 
-    commentary_list = []
+    if match_id:
 
-    if isinstance(commentary_items, dict):
+        try:
 
-        commentary_values = commentary_items.values()
+            _, mini, _ = get_match_score(
+                match_id
+            )
 
-    elif isinstance(commentary_items, list):
+            show_innings_summary(
+                mini
+            )
 
-        commentary_values = commentary_items
+        except Exception as e:
 
-    else:
-
-        commentary_values = []
-
-    for item in commentary_values:
-
-        if (
-            isinstance(item, dict)
-            and item.get("commType") == "commentary"
-            and item.get("commText")
-        ):
-
-            commentary_list.append(item)
-
-    commentary_list.sort(
-        key=lambda x: x.get(
-            "timestamp",
-            0
-        ),
-        reverse=True
-    )
-
-    if not commentary_list:
-
-        st.info(
-            "No commentary available."
-        )
-
-        return
-
-    for item in commentary_list[:10]:
-
-        team_name = item.get(
-            "teamName",
-            ""
-        )
-
-        innings_id = item.get(
-            "inningsId",
-            ""
-        )
-
-        text = item.get(
-            "commText",
-            ""
-        )
-
-        prefix = ""
-
-        if team_name:
-
-            prefix += f"**{team_name}** "
-
-        if innings_id:
-
-            prefix += f"(Innings {innings_id}) "
-
-        st.write(
-            f"• {prefix}{text}"
-        )
+            st.error(
+                f"Unable to load innings data: {e}"
+            )
 
 
 # ============================================================
@@ -1009,85 +1230,77 @@ def show_commentary(data):
 
 def show_bowling_page():
 
-    st.markdown(
-        '<div class="title-bar">'
-        '🎯 Bowling'
-        '</div>',
-        unsafe_allow_html=True
+    page_title(
+        "🎯 Bowling"
     )
 
-    selected_match_id = get_selected_match()
+    match_id = get_selected_match()
 
-    if not selected_match_id:
+    if not match_id:
+
         return
 
     try:
 
-        data, mini, header = get_match_score(
-            selected_match_id
-        )
-
-        st.subheader(
-            "🎯 Current Bowler"
+        _, mini, _ = get_match_score(
+            match_id
         )
 
         bowler = mini.get(
             "bowlerStriker",
-            {}
+            {},
         )
 
-        col1, col2, col3, col4 = st.columns(4)
+        c1, c2, c3, c4 = st.columns(4)
 
-        with col1:
-
-            st.metric(
-                "Bowler",
-                bowler.get(
-                    "name",
-                    "N/A"
-                )
-            )
-
-        with col2:
-
-            st.metric(
-                "Overs",
-                bowler.get(
-                    "overs",
-                    0
-                )
-            )
-
-        with col3:
-
-            st.metric(
-                "Runs",
-                bowler.get(
-                    "runs",
-                    0
-                )
-            )
-
-        with col4:
-
-            st.metric(
-                "Wickets",
-                bowler.get(
-                    "wickets",
-                    0
-                )
-            )
-
-        st.divider()
-
-        st.write(
-            f"**Maidens:** "
-            f"{bowler.get('maidens', 0)}"
+        c1.metric(
+            "Bowler",
+            bowler.get(
+                "name",
+                "N/A",
+            ),
         )
 
-        st.write(
-            f"**Economy:** "
-            f"{bowler.get('economy', 0)}"
+        c2.metric(
+            "Overs",
+            bowler.get(
+                "overs",
+                0,
+            ),
+        )
+
+        c3.metric(
+            "Runs",
+            bowler.get(
+                "runs",
+                0,
+            ),
+        )
+
+        c4.metric(
+            "Wickets",
+            bowler.get(
+                "wickets",
+                0,
+            ),
+        )
+
+        c1, c2 = st.columns(2)
+
+        c1.metric(
+            "Maidens",
+            bowler.get(
+                "maidens",
+                0,
+            ),
+        )
+
+        c2.metric(
+            "Economy",
+            bowler.get(
+                "economy",
+                0,
+            ),
         )
 
     except Exception as e:
@@ -1098,357 +1311,104 @@ def show_bowling_page():
 
 
 # ============================================================
-# COMMENTARY PAGE
-# ============================================================
-
-def show_commentary_page():
-
-    st.markdown(
-        '<div class="title-bar">'
-        '💬 Commentary'
-        '</div>',
-        unsafe_allow_html=True
-    )
-
-    selected_match_id = get_selected_match()
-
-    if not selected_match_id:
-        return
-
-    try:
-
-        data, mini, header = get_match_score(
-            selected_match_id
-        )
-
-        show_commentary(data)
-
-    except Exception as e:
-
-        st.error(
-            f"Unable to load commentary: {e}"
-        )
-
-
-# ============================================================
-# INNINGS PAGE
-# ============================================================
-
-def show_innings_page():
-
-    st.markdown(
-        '<div class="title-bar">'
-        '📊 Innings Summary'
-        '</div>',
-        unsafe_allow_html=True
-    )
-
-    selected_match_id = get_selected_match()
-
-    if not selected_match_id:
-        return
-
-    try:
-
-        data, mini, header = get_match_score(
-            selected_match_id
-        )
-
-        show_innings_summary(mini)
-
-    except Exception as e:
-
-        st.error(
-            f"Unable to load innings data: {e}"
-        )
-
-
-# ============================================================
-# ANALYTICS
-# ============================================================
-
-def show_analytics(mini):
-
-    st.markdown(
-        '<div class="title-bar">'
-        '📈 Match Analytics'
-        '</div>',
-        unsafe_allow_html=True
-    )
-
-    col1, col2, col3 = st.columns(3)
-
-    with col1:
-
-        st.metric(
-            "Current Run Rate",
-            mini.get(
-                "currentRunRate",
-                0
-            )
-        )
-
-    with col2:
-
-        partnership = mini.get(
-            "partnerShip",
-            {}
-        )
-
-        st.metric(
-            "Partnership Runs",
-            partnership.get(
-                "runs",
-                0
-            )
-        )
-
-    with col3:
-
-        st.metric(
-            "Partnership Balls",
-            partnership.get(
-                "balls",
-                0
-            )
-        )
-
-    match_score_details = mini.get(
-        "matchScoreDetails",
-        {}
-    )
-
-    innings_list = match_score_details.get(
-        "inningsScoreList",
-        []
-    )
-
-    if innings_list:
-
-        chart_data = {}
-
-        for innings in innings_list:
-
-            team = innings.get(
-                "batTeamName",
-                "Unknown"
-            )
-
-            score = innings.get(
-                "score",
-                0
-            )
-
-            innings_id = innings.get(
-                "inningsId",
-                ""
-            )
-
-            chart_data[
-                f"{team} - Innings {innings_id}"
-            ] = score
-
-        if chart_data:
-
-            st.subheader(
-                "📊 Runs by Innings"
-            )
-
-            st.bar_chart(
-                chart_data
-            )
-
-    st.subheader(
-        "🏏 Batsman Comparison"
-    )
-
-    striker = mini.get(
-        "batsmanStriker",
-        {}
-    )
-
-    non_striker = mini.get(
-        "batsmanNonStriker",
-        {}
-    )
-
-    batsman_chart = {}
-
-    striker_name = striker.get(
-        "name",
-        ""
-    )
-
-    non_striker_name = non_striker.get(
-        "name",
-        ""
-    )
-
-    if striker_name:
-
-        batsman_chart[striker_name] = striker.get(
-            "runs",
-            0
-        )
-
-    if non_striker_name:
-
-        batsman_chart[non_striker_name] = non_striker.get(
-            "runs",
-            0
-        )
-
-    if batsman_chart:
-
-        st.bar_chart(
-            batsman_chart
-        )
-
-
-# ============================================================
 # ANALYTICS PAGE
 # ============================================================
 
 def show_analytics_page():
 
-    st.markdown(
-        '<div class="title-bar">'
-        '📈 Analytics'
-        '</div>',
-        unsafe_allow_html=True
+    page_title(
+        "📈 Analytics"
     )
 
-    selected_match_id = get_selected_match()
+    match_id = get_selected_match()
 
-    if not selected_match_id:
-        return
+    if match_id:
 
-    try:
+        try:
 
-        data, mini, header = get_match_score(
-            selected_match_id
-        )
+            _, mini, _ = get_match_score(
+                match_id
+            )
 
-        show_analytics(mini)
+            show_analytics(
+                mini
+            )
 
-    except Exception as e:
+        except Exception as e:
 
-        st.error(
-            f"Unable to load analytics: {e}"
-        )
+            st.error(
+                f"Unable to load analytics: {e}"
+            )
 
 
 # ============================================================
-# CRUD - GET PLAYERS
+# CRUD HELPERS
 # ============================================================
 
 def get_players():
 
-    try:
+    return execute_select(
+        """
+        SELECT
+            p.player_id,
+            p.full_name,
+            p.role_id,
+            r.role_name,
+            p.national_team_id,
+            t.team_name AS national_team,
+            p.batting_style,
+            p.bowling_style,
+            p.api_player_id,
+            p.is_active
+        FROM players p
+        LEFT JOIN roles r
+            ON p.role_id = r.role_id
+        LEFT JOIN teams t
+            ON p.national_team_id = t.team_id
+        ORDER BY p.player_id
+        """
+    )
 
-        return execute_select(
-            """
-            SELECT
-                p.player_id,
-                p.full_name,
-                p.role_id,
-                r.role_name,
-                p.national_team_id,
-                t.team_name AS national_team,
-                p.batting_style,
-                p.bowling_style,
-                p.api_player_id,
-                p.is_active
-            FROM players p
-            LEFT JOIN roles r
-                ON p.role_id = r.role_id
-            LEFT JOIN teams t
-                ON p.national_team_id = t.team_id
-            ORDER BY p.player_id
-            """
-        )
-
-    except Exception as e:
-
-        st.error(
-            f"Unable to load players: {e}"
-        )
-
-        return []
-
-
-# ============================================================
-# CRUD - GET ROLES
-# ============================================================
 
 def get_roles():
 
-    try:
+    return execute_select(
+        """
+        SELECT
+            role_id,
+            role_name
+        FROM roles
+        ORDER BY role_name
+        """
+    )
 
-        return execute_select(
-            """
-            SELECT
-                role_id,
-                role_name
-            FROM roles
-            ORDER BY role_name
-            """
-        )
-
-    except Exception as e:
-
-        st.error(
-            f"Unable to load roles: {e}"
-        )
-
-        return []
-
-
-# ============================================================
-# CRUD - GET TEAMS
-# ============================================================
 
 def get_teams():
 
-    try:
+    return execute_select(
+        """
+        SELECT
+            team_id,
+            team_name
+        FROM teams
+        ORDER BY team_name
+        """
+    )
 
-        return execute_select(
-            """
-            SELECT
-                team_id,
-                team_name
-            FROM teams
-            ORDER BY team_name
-            """
-        )
-
-    except Exception as e:
-
-        st.error(
-            f"Unable to load teams: {e}"
-        )
-
-        return []
-
-
-# ============================================================
-# CRUD - CREATE PLAYER
-# ============================================================
 
 def create_player(
     full_name,
     role_id,
-    national_team_id,
-    batting_style,
-    bowling_style,
-    api_player_id,
-    is_active
+    team_id,
+    batting,
+    bowling,
+    api_id,
+    active,
 ):
 
     return execute_action(
         """
-        INSERT INTO players
-        (
+        INSERT INTO players(
             full_name,
             role_id,
             national_team_id,
@@ -1457,74 +1417,65 @@ def create_player(
             api_player_id,
             is_active
         )
-        VALUES
-        (%s, %s, %s, %s, %s, %s, %s)
+        VALUES(%s,%s,%s,%s,%s,%s,%s)
         """,
         (
             full_name,
             role_id,
-            national_team_id,
-            batting_style,
-            bowling_style,
-            api_player_id,
-            is_active
-        )
+            team_id,
+            batting,
+            bowling,
+            api_id,
+            active,
+        ),
     )
 
-
-# ============================================================
-# CRUD - UPDATE PLAYER
-# ============================================================
 
 def update_player(
     player_id,
     full_name,
     role_id,
-    national_team_id,
-    batting_style,
-    bowling_style,
-    api_player_id,
-    is_active
+    team_id,
+    batting,
+    bowling,
+    api_id,
+    active,
 ):
 
     return execute_action(
         """
         UPDATE players
         SET
-            full_name = %s,
-            role_id = %s,
-            national_team_id = %s,
-            batting_style = %s,
-            bowling_style = %s,
-            api_player_id = %s,
-            is_active = %s
-        WHERE player_id = %s
+            full_name=%s,
+            role_id=%s,
+            national_team_id=%s,
+            batting_style=%s,
+            bowling_style=%s,
+            api_player_id=%s,
+            is_active=%s
+        WHERE player_id=%s
         """,
         (
             full_name,
             role_id,
-            national_team_id,
-            batting_style,
-            bowling_style,
-            api_player_id,
-            is_active,
-            player_id
-        )
+            team_id,
+            batting,
+            bowling,
+            api_id,
+            active,
+            player_id,
+        ),
     )
 
-
-# ============================================================
-# CRUD - DELETE PLAYER
-# ============================================================
 
 def delete_player(player_id):
 
     return execute_action(
         """
         DELETE FROM players
-        WHERE player_id = %s
+        WHERE player_id=%s
         """,
-        (player_id,)
+        (player_id,),
     )
 
 
@@ -1534,91 +1485,105 @@ def delete_player(player_id):
 
 def show_crud_page():
 
-    st.markdown(
-        '<div class="title-bar">'
-        '🛠️ CRUD Operations'
-        '</div>',
-        unsafe_allow_html=True
+    page_title(
+        "🛠️ CRUD Operations"
     )
 
     st.info(
-        "CRUD operations are currently available for the players table."
+        "CRUD operations are currently available "
+        "for the players table."
     )
 
-    crud_operation = st.radio(
+    op = st.radio(
         "Choose Operation",
         [
             "➕ Create Player",
             "👀 Read Players",
             "✏️ Update Player",
-            "🗑️ Delete Player"
+            "🗑️ Delete Player",
         ],
-        horizontal=True
+        horizontal=True,
     )
 
-    roles = get_roles()
-    teams = get_teams()
+    try:
+
+        roles = get_roles()
+        teams = get_teams()
+
+    except Exception as e:
+
+        st.error(
+            f"Unable to load CRUD data: {e}"
+        )
+
+        return
 
     role_map = {
-        role["role_name"]: role["role_id"]
-        for role in roles
+        r["role_name"]: r["role_id"]
+        for r in roles
     }
 
     team_map = {
-        team["team_name"]: team["team_id"]
-        for team in teams
+        t["team_name"]: t["team_id"]
+        for t in teams
     }
 
-    # ========================================================
+    # --------------------------------------------------------
     # CREATE
-    # ========================================================
+    # --------------------------------------------------------
 
-    if crud_operation == "➕ Create Player":
+    if op == "➕ Create Player":
 
-        st.subheader("➕ Add New Player")
+        st.subheader(
+            "➕ Add New Player"
+        )
 
-        with st.form("create_player_form"):
+        with st.form(
+            "create_player_form"
+        ):
 
-            full_name = st.text_input(
+            name = st.text_input(
                 "Full Name"
             )
 
-            role_name = st.selectbox(
+            role = st.selectbox(
                 "Role",
-                list(role_map.keys())
-                if role_map
-                else ["No roles available"]
+                list(role_map)
+                or ["No roles available"],
             )
 
-            team_name = st.selectbox(
+            team = st.selectbox(
                 "National Team",
-                ["None"] + list(team_map.keys())
+                ["None"]
+                + list(team_map),
             )
 
-            batting_style = st.text_input(
+            batting = st.text_input(
                 "Batting Style"
             )
 
-            bowling_style = st.text_input(
+            bowling = st.text_input(
                 "Bowling Style"
             )
 
-            api_player_id = st.text_input(
+            api_id = st.text_input(
                 "API Player ID"
             )
 
-            is_active = st.checkbox(
+            active = st.checkbox(
                 "Active Player",
-                value=True
+                True,
             )
 
-            submitted = st.form_submit_button(
-                "Create Player"
+            submitted = (
+                st.form_submit_button(
+                    "Create Player"
+                )
             )
 
         if submitted:
 
-            if not full_name.strip():
+            if not name.strip():
 
                 st.error(
                     "Full Name is required."
@@ -1626,25 +1591,20 @@ def show_crud_page():
 
             else:
 
-                selected_role_id = role_map.get(
-                    role_name
+                ok, msg = create_player(
+                    name.strip(),
+                    role_map.get(role),
+                    team_map.get(team),
+                    batting.strip()
+                    or None,
+                    bowling.strip()
+                    or None,
+                    api_id.strip()
+                    or None,
+                    active,
                 )
 
-                selected_team_id = team_map.get(
-                    team_name
-                )
-
-                success, message = create_player(
-                    full_name.strip(),
-                    selected_role_id,
-                    selected_team_id,
-                    batting_style.strip() or None,
-                    bowling_style.strip() or None,
-                    api_player_id.strip() or None,
-                    is_active
-                )
-
-                if success:
+                if ok:
 
                     st.success(
                         "✅ Player created successfully."
@@ -1653,42 +1613,50 @@ def show_crud_page():
                 else:
 
                     st.error(
-                        f"Create failed: {message}"
+                        f"Create failed: {msg}"
                     )
 
-    # ========================================================
+    # --------------------------------------------------------
     # READ
-    # ========================================================
+    # --------------------------------------------------------
 
-    elif crud_operation == "👀 Read Players":
+    elif op == "👀 Read Players":
 
-        st.subheader("👀 Players")
+        st.subheader(
+            "👀 Players"
+        )
 
-        players = get_players()
+        try:
 
-        if players:
+            rows = get_players()
 
-            df = pd.DataFrame(players)
+        except Exception as e:
+
+            st.error(
+                f"Unable to load players: {e}"
+            )
+
+            return
+
+        if rows:
+
+            df = pd.DataFrame(rows)
 
             st.dataframe(
                 df,
                 use_container_width=True,
-                hide_index=True
+                hide_index=True,
             )
 
             st.success(
-                f"{len(players)} player records found."
-            )
-
-            csv_data = df.to_csv(
-                index=False
+                f"{len(rows)} player records found."
             )
 
             st.download_button(
                 "⬇️ Download Players CSV",
-                csv_data,
+                df.to_csv(index=False),
                 "players.csv",
-                "text/csv"
+                "text/csv",
             )
 
         else:
@@ -1697,15 +1665,27 @@ def show_crud_page():
                 "No player records found."
             )
 
-    # ========================================================
+    # --------------------------------------------------------
     # UPDATE
-    # ========================================================
+    # --------------------------------------------------------
 
-    elif crud_operation == "✏️ Update Player":
+    elif op == "✏️ Update Player":
 
-        st.subheader("✏️ Update Player")
+        st.subheader(
+            "✏️ Update Player"
+        )
 
-        players = get_players()
+        try:
+
+            players = get_players()
+
+        except Exception as e:
+
+            st.error(
+                f"Unable to load players: {e}"
+            )
+
+            return
 
         if not players:
 
@@ -1713,178 +1693,185 @@ def show_crud_page():
                 "No players available for update."
             )
 
-        else:
+            return
 
-            player_map = {
-                f"{p['player_id']} - {p['full_name']}":
-                p
-                for p in players
-            }
+        pmap = {
+            f"{p['player_id']} - {p['full_name']}": p
+            for p in players
+        }
 
-            selected_player_label = st.selectbox(
-                "Select Player",
-                list(player_map.keys())
+        label = st.selectbox(
+            "Select Player",
+            list(pmap),
+        )
+
+        p = pmap[label]
+
+        role_names = list(role_map)
+
+        if (
+            p.get("role_name")
+            and p["role_name"]
+            not in role_names
+        ):
+
+            role_names.insert(
+                0,
+                p["role_name"],
             )
 
-            selected_player = player_map[
-                selected_player_label
-            ]
+        team_names = list(team_map)
 
-            role_names = list(
-                role_map.keys()
+        if (
+            p.get("national_team")
+            and p["national_team"]
+            not in team_names
+        ):
+
+            team_names.insert(
+                0,
+                p["national_team"],
             )
 
-            current_role = selected_player.get(
-                "role_name"
-            )
+        with st.form(
+            "update_player_form"
+        ):
 
-            if (
-                current_role
-                and current_role not in role_names
-            ):
-
-                role_names.insert(
-                    0,
-                    current_role
+            name = st.text_input(
+                "Full Name",
+                p.get(
+                    "full_name"
                 )
-
-            team_names = list(
-                team_map.keys()
+                or "",
             )
 
-            current_team = selected_player.get(
-                "national_team"
+            role = st.selectbox(
+                "Role",
+                role_names
+                or ["No roles available"],
+                index=(
+                    role_names.index(
+                        p.get("role_name")
+                    )
+                    if p.get(
+                        "role_name"
+                    )
+                    in role_names
+                    else 0
+                ),
             )
 
-            if (
-                current_team
-                and current_team not in team_names
-            ):
+            opts = [
+                "None"
+            ] + team_names
 
-                team_names.insert(
-                    0,
+            current_team = (
+                p.get("national_team")
+                if p.get(
+                    "national_team"
+                )
+                in team_names
+                else "None"
+            )
+
+            team = st.selectbox(
+                "National Team",
+                opts,
+                index=opts.index(
                     current_team
+                ),
+            )
+
+            batting = st.text_input(
+                "Batting Style",
+                p.get(
+                    "batting_style"
                 )
+                or "",
+            )
 
-            with st.form("update_player_form"):
-
-                full_name = st.text_input(
-                    "Full Name",
-                    value=selected_player.get(
-                        "full_name"
-                    ) or ""
+            bowling = st.text_input(
+                "Bowling Style",
+                p.get(
+                    "bowling_style"
                 )
+                or "",
+            )
 
-                role_name = st.selectbox(
-                    "Role",
-                    role_names
-                    if role_names
-                    else ["No roles available"],
-                    index=(
-                        role_names.index(
-                            current_role
-                        )
-                        if current_role in role_names
-                        else 0
+            api_id = st.text_input(
+                "API Player ID",
+                str(
+                    p.get(
+                        "api_player_id"
                     )
-                )
+                    or ""
+                ),
+            )
 
-                team_options = [
-                    "None"
-                ] + team_names
-
-                current_team_option = (
-                    current_team
-                    if current_team in team_names
-                    else "None"
-                )
-
-                team_name = st.selectbox(
-                    "National Team",
-                    team_options,
-                    index=team_options.index(
-                        current_team_option
+            active = st.checkbox(
+                "Active Player",
+                bool(
+                    p.get(
+                        "is_active"
                     )
-                )
+                ),
+            )
 
-                batting_style = st.text_input(
-                    "Batting Style",
-                    value=selected_player.get(
-                        "batting_style"
-                    ) or ""
-                )
-
-                bowling_style = st.text_input(
-                    "Bowling Style",
-                    value=selected_player.get(
-                        "bowling_style"
-                    ) or ""
-                )
-
-                api_player_id = st.text_input(
-                    "API Player ID",
-                    value=str(
-                        selected_player.get(
-                            "api_player_id"
-                        ) or ""
-                    )
-                )
-
-                is_active = st.checkbox(
-                    "Active Player",
-                    value=bool(
-                        selected_player.get(
-                            "is_active"
-                        )
-                    )
-                )
-
-                submitted = st.form_submit_button(
+            submitted = (
+                st.form_submit_button(
                     "Update Player"
                 )
+            )
 
-            if submitted:
+        if submitted:
 
-                selected_role_id = role_map.get(
-                    role_name
+            ok, msg = update_player(
+                p["player_id"],
+                name.strip(),
+                role_map.get(role),
+                team_map.get(team),
+                batting.strip()
+                or None,
+                bowling.strip()
+                or None,
+                api_id.strip()
+                or None,
+                active,
+            )
+
+            if ok:
+
+                st.success(
+                    "✅ Player updated successfully."
                 )
 
-                selected_team_id = team_map.get(
-                    team_name
+            else:
+
+                st.error(
+                    f"Update failed: {msg}"
                 )
 
-                success, message = update_player(
-                    selected_player["player_id"],
-                    full_name.strip(),
-                    selected_role_id,
-                    selected_team_id,
-                    batting_style.strip() or None,
-                    bowling_style.strip() or None,
-                    api_player_id.strip() or None,
-                    is_active
-                )
-
-                if success:
-
-                    st.success(
-                        "✅ Player updated successfully."
-                    )
-
-                else:
-
-                    st.error(
-                        f"Update failed: {message}"
-                    )
-
-    # ========================================================
+    # --------------------------------------------------------
     # DELETE
-    # ========================================================
+    # --------------------------------------------------------
 
-    elif crud_operation == "🗑️ Delete Player":
+    else:
 
-        st.subheader("🗑️ Delete Player")
+        st.subheader(
+            "🗑️ Delete Player"
+        )
 
-        players = get_players()
+        try:
+
+            players = get_players()
+
+        except Exception as e:
+
+            st.error(
+                f"Unable to load players: {e}"
+            )
+
+            return
 
         if not players:
 
@@ -1892,55 +1879,52 @@ def show_crud_page():
                 "No players available for deletion."
             )
 
-        else:
+            return
 
-            player_map = {
-                f"{p['player_id']} - {p['full_name']}":
+        pmap = {
+            f"{p['player_id']} - {p['full_name']}":
                 p["player_id"]
-                for p in players
-            }
+            for p in players
+        }
 
-            selected_label = st.selectbox(
-                "Select Player",
-                list(player_map.keys())
-            )
+        label = st.selectbox(
+            "Select Player",
+            list(pmap),
+        )
 
-            selected_player_id = player_map[
-                selected_label
-            ]
+        confirm = st.checkbox(
+            "I understand that this will permanently "
+            "delete the player record."
+        )
 
-            confirm_delete = st.checkbox(
-                "I understand that this will permanently delete the player record."
-            )
+        if st.button(
+            "🗑️ Delete Player",
+            type="secondary",
+        ):
 
-            if st.button(
-                "🗑️ Delete Player",
-                type="secondary"
-            ):
+            if not confirm:
 
-                if not confirm_delete:
+                st.warning(
+                    "Please confirm deletion first."
+                )
 
-                    st.warning(
-                        "Please confirm deletion first."
+            else:
+
+                ok, msg = delete_player(
+                    pmap[label]
+                )
+
+                if ok:
+
+                    st.success(
+                        "✅ Player deleted successfully."
                     )
 
                 else:
 
-                    success, message = delete_player(
-                        selected_player_id
+                    st.error(
+                        f"Delete failed: {msg}"
                     )
-
-                    if success:
-
-                        st.success(
-                            "✅ Player deleted successfully."
-                        )
-
-                    else:
-
-                        st.error(
-                            f"Delete failed: {message}"
-                        )
 
 
 # ============================================================
@@ -1949,19 +1933,16 @@ def show_crud_page():
 
 def show_top_player_stats():
 
-    st.markdown(
-        '<div class="title-bar">'
-        '👤 Top Player Stats'
-        '</div>',
-        unsafe_allow_html=True
+    page_title(
+        "👤 Top Player Stats"
     )
 
     st.info(
-        "Player statistics are calculated from the MySQL performance tables."
+        "Player statistics are calculated "
+        "from the MySQL performance tables."
     )
 
-    connection = None
-    cursor = None
+    connection = cursor = None
 
     try:
 
@@ -1979,51 +1960,65 @@ def show_top_player_stats():
             "🏏 Top Run Scorers"
         )
 
-        try:
+        cursor.execute(
+            """
+            SELECT
+                p.player_id,
+                p.full_name,
+                COUNT(*) AS innings_played,
+                COALESCE(
+                    SUM(bp.runs),
+                    0
+                ) AS total_runs,
+                COALESCE(
+                    MAX(bp.runs),
+                    0
+                ) AS highest_score,
+                COALESCE(
+                    ROUND(
+                        AVG(bp.runs),
+                        2
+                    ),
+                    0
+                ) AS average_runs
+            FROM players p
+            JOIN batting_performance bp
+                ON p.player_id = bp.player_id
+            GROUP BY
+                p.player_id,
+                p.full_name
+            ORDER BY total_runs DESC
+            LIMIT 10
+            """
+        )
 
-            cursor.execute(
-                """
-                SELECT
-                    p.player_id,
-                    p.full_name,
-                    COUNT(*) AS innings_played,
-                    COALESCE(SUM(bp.runs), 0) AS total_runs,
-                    COALESCE(MAX(bp.runs), 0) AS highest_score,
-                    COALESCE(
-                        ROUND(AVG(bp.runs), 2),
-                        0
-                    ) AS average_runs
-                FROM players p
-                JOIN batting_performance bp
-                    ON p.player_id = bp.player_id
-                GROUP BY
-                    p.player_id,
-                    p.full_name
-                ORDER BY total_runs DESC
-                LIMIT 10
-                """
+        rows = cursor.fetchall()
+
+        if rows:
+
+            df = pd.DataFrame(rows)
+
+            df = df.rename(
+                columns={
+                    "player_id": "Player ID",
+                    "full_name": "Player",
+                    "innings_played": "Innings",
+                    "total_runs": "Total Runs",
+                    "highest_score": "Highest Score",
+                    "average_runs": "Average Runs",
+                }
             )
 
-            top_batsmen = cursor.fetchall()
+            st.dataframe(
+                df,
+                use_container_width=True,
+                hide_index=True,
+            )
 
-            if top_batsmen:
+        else:
 
-                st.dataframe(
-                    pd.DataFrame(top_batsmen),
-                    use_container_width=True,
-                    hide_index=True
-                )
-
-            else:
-
-                st.info(
-                    "No batting performance data available."
-                )
-
-        except Exception as e:
-
-            st.warning(
-                f"Batting statistics unavailable: {e}"
+            st.info(
+                "No batting performance data available."
             )
 
         st.divider()
@@ -2036,52 +2031,55 @@ def show_top_player_stats():
             "🎯 Top Wicket Takers"
         )
 
-        try:
+        cursor.execute(
+            """
+            SELECT
+                p.player_id,
+                p.full_name,
+                COALESCE(
+                    SUM(bw.wickets),
+                    0
+                ) AS total_wickets,
+                COALESCE(
+                    SUM(bw.runs_conceded),
+                    0
+                ) AS runs_conceded
+            FROM players p
+            JOIN bowling_performance bw
+                ON p.player_id = bw.player_id
+            GROUP BY
+                p.player_id,
+                p.full_name
+            ORDER BY total_wickets DESC
+            LIMIT 10
+            """
+        )
 
-            cursor.execute(
-                """
-                SELECT
-                    p.player_id,
-                    p.full_name,
-                    COALESCE(
-                        SUM(bp.wickets),
-                        0
-                    ) AS total_wickets,
-                    COALESCE(
-                        SUM(bp.runs_conceded),
-                        0
-                    ) AS runs_conceded
-                FROM players p
-                JOIN bowling_performance bp
-                    ON p.player_id = bp.player_id
-                GROUP BY
-                    p.player_id,
-                    p.full_name
-                ORDER BY total_wickets DESC
-                LIMIT 10
-                """
+        rows = cursor.fetchall()
+
+        if rows:
+
+            df = pd.DataFrame(rows)
+
+            df = df.rename(
+                columns={
+                    "player_id": "Player ID",
+                    "full_name": "Player",
+                    "total_wickets": "Total Wickets",
+                    "runs_conceded": "Runs Conceded",
+                }
             )
 
-            top_bowlers = cursor.fetchall()
+            st.dataframe(
+                df,
+                use_container_width=True,
+                hide_index=True,
+            )
 
-            if top_bowlers:
+        else:
 
-                st.dataframe(
-                    pd.DataFrame(top_bowlers),
-                    use_container_width=True,
-                    hide_index=True
-                )
-
-            else:
-
-                st.info(
-                    "No bowling performance data available."
-                )
-
-        except Exception as e:
-
-            st.warning(
-                f"Bowling statistics unavailable: {e}"
+            st.info(
+                "No bowling performance data available."
             )
 
     except Exception as e:
@@ -2106,395 +2104,417 @@ def show_top_player_stats():
 SQL_QUERIES = {
 
     "1. All Players":
-    """
-    SELECT
-        player_id,
-        full_name,
-        batting_style,
-        bowling_style,
-        is_active
-    FROM players
-    ORDER BY full_name;
-    """,
+        """
+        SELECT
+            player_id,
+            full_name,
+            batting_style,
+            bowling_style,
+            is_active
+        FROM players
+        ORDER BY full_name;
+        """,
 
     "2. Active Players":
-    """
-    SELECT
-        player_id,
-        full_name
-    FROM players
-    WHERE is_active = 1
-    ORDER BY full_name;
-    """,
+        """
+        SELECT
+            player_id,
+            full_name
+        FROM players
+        WHERE is_active = 1
+        ORDER BY full_name;
+        """,
 
     "3. Players by Role":
-    """
-    SELECT
-        r.role_name,
-        COUNT(p.player_id) AS player_count
-    FROM roles r
-    LEFT JOIN players p
-        ON r.role_id = p.role_id
-    GROUP BY
-        r.role_id,
-        r.role_name
-    ORDER BY player_count DESC;
-    """,
+        """
+        SELECT
+            r.role_name,
+            COUNT(p.player_id) AS player_count
+        FROM roles r
+        LEFT JOIN players p
+            ON r.role_id = p.role_id
+        GROUP BY
+            r.role_id,
+            r.role_name
+        ORDER BY player_count DESC;
+        """,
 
     "4. Players by National Team":
-    """
-    SELECT
-        t.team_name,
-        COUNT(p.player_id) AS player_count
-    FROM teams t
-    LEFT JOIN players p
-        ON t.team_id = p.national_team_id
-    GROUP BY
-        t.team_id,
-        t.team_name
-    ORDER BY player_count DESC;
-    """,
+        """
+        SELECT
+            t.team_name,
+            COUNT(p.player_id) AS player_count
+        FROM teams t
+        LEFT JOIN players p
+            ON t.team_id = p.national_team_id
+        GROUP BY
+            t.team_id,
+            t.team_name
+        ORDER BY player_count DESC;
+        """,
 
     "5. Team List":
-    """
-    SELECT
-        team_id,
-        team_name,
-        team_type,
-        country_id
-    FROM teams
-    ORDER BY team_name;
-    """,
+        """
+        SELECT
+            team_id,
+            team_name,
+            team_type,
+            country_id
+        FROM teams
+        ORDER BY team_name;
+        """,
 
     "6. Venue List":
-    """
-    SELECT
-        venue_id,
-        venue_name,
-        city,
-        capacity
-    FROM venues
-    ORDER BY venue_name;
-    """,
+        """
+        SELECT
+            venue_id,
+            venue_name,
+            city,
+            capacity
+        FROM venues
+        ORDER BY venue_name;
+        """,
 
     "7. Match List":
-    """
-    SELECT
-        match_id,
-        description,
-        match_date,
-        status,
-        api_match_id
-    FROM matches
-    ORDER BY match_date DESC;
-    """,
+        """
+        SELECT
+            match_id,
+            description,
+            match_date,
+            status,
+            api_match_id
+        FROM matches
+        ORDER BY match_date DESC;
+        """,
 
     "8. Completed Matches":
-    """
-    SELECT
-        match_id,
-        description,
-        match_date,
-        winner_team_id
-    FROM matches
-    WHERE status = 'Completed'
-    ORDER BY match_date DESC;
-    """,
+        """
+        SELECT
+            match_id,
+            description,
+            match_date,
+            winner_team_id
+        FROM matches
+        WHERE status = 'Completed'
+        ORDER BY match_date DESC;
+        """,
 
     "9. Live Matches":
-    """
-    SELECT
-        match_id,
-        description,
-        match_date,
-        status
-    FROM matches
-    WHERE status = 'Live'
-    ORDER BY match_date DESC;
-    """,
+        """
+        SELECT
+            match_id,
+            description,
+            match_date,
+            status
+        FROM matches
+        WHERE status = 'Live'
+        ORDER BY match_date DESC;
+        """,
 
     "10. Matches by Format":
-    """
-    SELECT
-        f.format_name,
-        COUNT(m.match_id) AS match_count
-    FROM formats f
-    LEFT JOIN matches m
-        ON f.format_id = m.format_id
-    GROUP BY
-        f.format_id,
-        f.format_name
-    ORDER BY match_count DESC;
-    """,
+        """
+        SELECT
+            f.format_name,
+            COUNT(m.match_id) AS match_count
+        FROM formats f
+        LEFT JOIN matches m
+            ON f.format_id = m.format_id
+        GROUP BY
+            f.format_id,
+            f.format_name
+        ORDER BY match_count DESC;
+        """,
 
     "11. Matches by Venue":
-    """
-    SELECT
-        v.venue_name,
-        COUNT(m.match_id) AS match_count
-    FROM venues v
-    LEFT JOIN matches m
-        ON v.venue_id = m.venue_id
-    GROUP BY
-        v.venue_id,
-        v.venue_name
-    ORDER BY match_count DESC;
-    """,
+        """
+        SELECT
+            v.venue_name,
+            COUNT(m.match_id) AS match_count
+        FROM venues v
+        LEFT JOIN matches m
+            ON v.venue_id = m.venue_id
+        GROUP BY
+            v.venue_id,
+            v.venue_name
+        ORDER BY match_count DESC;
+        """,
 
     "12. Matches by Year":
-    """
-    SELECT
-        YEAR(match_date) AS match_year,
-        COUNT(*) AS match_count
-    FROM matches
-    WHERE match_date IS NOT NULL
-    GROUP BY YEAR(match_date)
-    ORDER BY match_year;
-    """,
+        """
+        SELECT
+            YEAR(match_date) AS match_year,
+            COUNT(*) AS match_count
+        FROM matches
+        WHERE match_date IS NOT NULL
+        GROUP BY YEAR(match_date)
+        ORDER BY match_year;
+        """,
 
     "13. Top Run Scorers":
-    """
-    SELECT
-        p.full_name,
-        SUM(bp.runs) AS total_runs
-    FROM players p
-    JOIN batting_performance bp
-        ON p.player_id = bp.player_id
-    GROUP BY
-        p.player_id,
-        p.full_name
-    ORDER BY total_runs DESC
-    LIMIT 10;
-    """,
+        """
+        SELECT
+            p.full_name,
+            SUM(bp.runs) AS total_runs
+        FROM players p
+        JOIN batting_performance bp
+            ON p.player_id = bp.player_id
+        GROUP BY
+            p.player_id,
+            p.full_name
+        ORDER BY total_runs DESC
+        LIMIT 10;
+        """,
 
     "14. Highest Individual Scores":
-    """
-    SELECT
-        p.full_name,
-        MAX(bp.runs) AS highest_score
-    FROM players p
-    JOIN batting_performance bp
-        ON p.player_id = bp.player_id
-    GROUP BY
-        p.player_id,
-        p.full_name
-    ORDER BY highest_score DESC
-    LIMIT 10;
-    """,
+        """
+        SELECT
+            p.full_name,
+            MAX(bp.runs) AS highest_score
+        FROM players p
+        JOIN batting_performance bp
+            ON p.player_id = bp.player_id
+        GROUP BY
+            p.player_id,
+            p.full_name
+        ORDER BY highest_score DESC
+        LIMIT 10;
+        """,
 
     "15. Top Wicket Takers":
-    """
-    SELECT
-        p.full_name,
-        SUM(bp.wickets) AS total_wickets
-    FROM players p
-    JOIN bowling_performance bp
-        ON p.player_id = bp.player_id
-    GROUP BY
-        p.player_id,
-        p.full_name
-    ORDER BY total_wickets DESC
-    LIMIT 10;
-    """,
+        """
+        SELECT
+            p.full_name,
+            SUM(bw.wickets) AS total_wickets
+        FROM players p
+        JOIN bowling_performance bw
+            ON p.player_id = bw.player_id
+        GROUP BY
+            p.player_id,
+            p.full_name
+        ORDER BY total_wickets DESC
+        LIMIT 10;
+        """,
 
     "16. Bowling Economy":
-    """
-    SELECT
-        p.full_name,
-        SUM(bp.runs_conceded) AS runs_conceded,
-        SUM(bp.overs) AS overs_bowled,
-        CASE
-            WHEN SUM(bp.overs) > 0
-            THEN ROUND(
-                SUM(bp.runs_conceded) /
-                SUM(bp.overs),
+        """
+        SELECT
+            p.full_name,
+            SUM(bw.runs_conceded) AS runs_conceded,
+            ROUND(
+                SUM(bw.balls_bowled) / 6,
                 2
-            )
-            ELSE 0
-        END AS economy
-    FROM players p
-    JOIN bowling_performance bp
-        ON p.player_id = bp.player_id
-    GROUP BY
-        p.player_id,
-        p.full_name
-    ORDER BY economy ASC;
-    """,
+            ) AS overs_bowled,
+            CASE
+                WHEN SUM(bw.balls_bowled) > 0
+                THEN ROUND(
+                    SUM(bw.runs_conceded) * 6.0
+                    / SUM(bw.balls_bowled),
+                    2
+                )
+                ELSE 0
+            END AS economy
+        FROM players p
+        JOIN bowling_performance bw
+            ON p.player_id = bw.player_id
+        GROUP BY
+            p.player_id,
+            p.full_name
+        ORDER BY economy ASC;
+        """,
 
     "17. All-Round Players":
-    """
-    SELECT
-        p.full_name,
-        COALESCE(
-            bat.total_runs,
-            0
-        ) AS total_runs,
-        COALESCE(
-            bowl.total_wickets,
-            0
-        ) AS total_wickets
-    FROM players p
-    LEFT JOIN (
+        """
         SELECT
-            player_id,
-            SUM(runs) AS total_runs
-        FROM batting_performance
-        GROUP BY player_id
-    ) bat
-        ON p.player_id = bat.player_id
-    LEFT JOIN (
-        SELECT
-            player_id,
-            SUM(wickets) AS total_wickets
-        FROM bowling_performance
-        GROUP BY player_id
-    ) bowl
-        ON p.player_id = bowl.player_id
-    WHERE
-        COALESCE(bat.total_runs, 0) > 0
-        AND COALESCE(bowl.total_wickets, 0) > 0
-    ORDER BY
-        total_runs DESC,
-        total_wickets DESC;
-    """,
+            p.full_name,
+            COALESCE(
+                bat.total_runs,
+                0
+            ) AS total_runs,
+            COALESCE(
+                bowl.total_wickets,
+                0
+            ) AS total_wickets
+        FROM players p
+        LEFT JOIN (
+            SELECT
+                player_id,
+                SUM(runs) AS total_runs
+            FROM batting_performance
+            GROUP BY player_id
+        ) bat
+            ON p.player_id = bat.player_id
+        LEFT JOIN (
+            SELECT
+                player_id,
+                SUM(wickets) AS total_wickets
+            FROM bowling_performance
+            GROUP BY player_id
+        ) bowl
+            ON p.player_id = bowl.player_id
+        WHERE
+            COALESCE(
+                bat.total_runs,
+                0
+            ) > 0
+            AND COALESCE(
+                bowl.total_wickets,
+                0
+            ) > 0
+        ORDER BY
+            total_runs DESC,
+            total_wickets DESC;
+        """,
 
     "18. Match Winners":
-    """
-    SELECT
-        m.match_id,
-        m.description,
-        t.team_name AS winning_team,
-        m.match_date
-    FROM matches m
-    LEFT JOIN teams t
-        ON m.winner_team_id = t.team_id
-    WHERE m.winner_team_id IS NOT NULL
-    ORDER BY m.match_date DESC;
-    """,
+        """
+        SELECT
+            m.match_id,
+            m.description,
+            t.team_name AS winning_team,
+            m.match_date
+        FROM matches m
+        LEFT JOIN teams t
+            ON m.winner_team_id = t.team_id
+        WHERE m.winner_team_id IS NOT NULL
+        ORDER BY m.match_date DESC;
+        """,
 
     "19. Toss Winners":
-    """
-    SELECT
-        m.match_id,
-        m.description,
-        t.team_name AS toss_winner,
-        m.toss_decision,
-        m.match_date
-    FROM matches m
-    LEFT JOIN teams t
-        ON m.toss_winner_team_id = t.team_id
-    WHERE m.toss_winner_team_id IS NOT NULL
-    ORDER BY m.match_date DESC;
-    """,
+        """
+        SELECT
+            m.match_id,
+            m.description,
+            t.team_name AS toss_winner,
+            m.toss_decision,
+            m.match_date
+        FROM matches m
+        LEFT JOIN teams t
+            ON m.toss_winner_team_id = t.team_id
+        WHERE m.toss_winner_team_id IS NOT NULL
+        ORDER BY m.match_date DESC;
+        """,
 
     "20. Toss Winner Also Won Match":
-    """
-    SELECT
-        COUNT(*) AS toss_and_match_wins
-    FROM matches
-    WHERE
-        toss_winner_team_id IS NOT NULL
-        AND winner_team_id IS NOT NULL
-        AND toss_winner_team_id = winner_team_id;
-    """,
+        """
+        SELECT
+            COUNT(*) AS toss_and_match_wins
+        FROM matches
+        WHERE
+            toss_winner_team_id IS NOT NULL
+            AND winner_team_id IS NOT NULL
+            AND toss_winner_team_id =
+                winner_team_id;
+        """,
 
     "21. Close Matches":
-    """
-    SELECT
-        match_id,
-        description,
-        match_date,
-        winner_team_id,
-        win_margin_runs,
-        win_margin_wickets
-    FROM matches
-    WHERE
-        (
-            win_margin_runs IS NOT NULL
-            AND win_margin_runs <= 20
-        )
-        OR
-        (
-            win_margin_wickets IS NOT NULL
-            AND win_margin_wickets <= 3
-        )
-    ORDER BY match_date DESC;
-    """,
+        """
+        SELECT
+            match_id,
+            description,
+            match_date,
+            winner_team_id,
+            win_margin_value,
+            win_margin_type
+        FROM matches
+        WHERE
+            (
+                win_margin_type = 'Runs'
+                AND win_margin_value <= 20
+            )
+            OR
+            (
+                win_margin_type = 'Wickets'
+                AND win_margin_value <= 3
+            )
+        ORDER BY match_date DESC;
+        """,
 
     "22. Partnerships":
-    """
-    SELECT
-        p.full_name AS player_one,
-        p2.full_name AS player_two,
-        SUM(pa.runs) AS partnership_runs
-    FROM partnerships pa
-    JOIN players p
-        ON pa.player1_id = p.player_id
-    JOIN players p2
-        ON pa.player2_id = p2.player_id
-    GROUP BY
-        pa.player1_id,
-        pa.player2_id,
-        p.full_name,
-        p2.full_name
-    ORDER BY partnership_runs DESC
-    LIMIT 10;
-    """,
+        """
+        SELECT
+            p.full_name AS player_one,
+            p2.full_name AS player_two,
+            SUM(
+                pa.partnership_runs
+            ) AS partnership_runs
+        FROM partnerships pa
+        JOIN players p
+            ON pa.player1_id = p.player_id
+        JOIN players p2
+            ON pa.player2_id = p2.player_id
+        GROUP BY
+            pa.player1_id,
+            pa.player2_id,
+            p.full_name,
+            p2.full_name
+        ORDER BY partnership_runs DESC
+        LIMIT 10;
+        """,
 
     "23. Head to Head Matches":
-    """
-    SELECT
-        mt1.team_id AS team_one_id,
-        mt2.team_id AS team_two_id,
-        COUNT(*) AS matches_played
-    FROM match_teams mt1
-    JOIN match_teams mt2
-        ON mt1.match_id = mt2.match_id
-        AND mt1.team_id < mt2.team_id
-    GROUP BY
-        mt1.team_id,
-        mt2.team_id
-    ORDER BY matches_played DESC;
-    """,
+        """
+        SELECT
+            t1.team_name AS team_one,
+            t2.team_name AS team_two,
+            COUNT(*) AS matches_played
+        FROM match_teams mt1
+        JOIN match_teams mt2
+            ON mt1.match_id = mt2.match_id
+            AND mt1.team_id < mt2.team_id
+        JOIN teams t1
+            ON mt1.team_id = t1.team_id
+        JOIN teams t2
+            ON mt2.team_id = t2.team_id
+        GROUP BY
+            mt1.team_id,
+            mt2.team_id,
+            t1.team_name,
+            t2.team_name
+        ORDER BY matches_played DESC;
+        """,
 
     "24. Player Batting Consistency":
-    """
-    SELECT
-        p.full_name,
-        COUNT(bp.batting_id) AS innings,
-        ROUND(
-            AVG(bp.runs),
-            2
-        ) AS average_runs,
-        ROUND(
-            STDDEV_POP(bp.runs),
-            2
-        ) AS run_stddev
-    FROM players p
-    JOIN batting_performance bp
-        ON p.player_id = bp.player_id
-    GROUP BY
-        p.player_id,
-        p.full_name
-    HAVING COUNT(bp.batting_id) >= 2
-    ORDER BY run_stddev ASC;
-    """,
+        """
+        SELECT
+            p.full_name,
+            COUNT(*) AS innings,
+            ROUND(
+                AVG(bp.runs),
+                2
+            ) AS average_runs,
+            ROUND(
+                STDDEV_POP(bp.runs),
+                2
+            ) AS run_stddev
+        FROM players p
+        JOIN batting_performance bp
+            ON p.player_id = bp.player_id
+        GROUP BY
+            p.player_id,
+            p.full_name
+        HAVING COUNT(*) >= 2
+        ORDER BY run_stddev ASC;
+        """,
 
     "25. Recent Player Form":
-    """
-    SELECT
-        p.full_name,
-        bp.match_id,
-        bp.runs,
-        bp.balls,
-        bp.fours,
-        bp.sixes
-    FROM batting_performance bp
-    JOIN players p
-        ON bp.player_id = p.player_id
-    ORDER BY bp.match_id DESC
-    LIMIT 20;
-    """
+        """
+        SELECT
+            p.full_name,
+            i.match_id,
+            bp.runs,
+            bp.balls_faced,
+            bp.fours,
+            bp.sixes
+        FROM batting_performance bp
+        JOIN players p
+            ON bp.player_id = p.player_id
+        JOIN innings i
+            ON bp.innings_id = i.innings_id
+        ORDER BY
+            i.match_id DESC,
+            p.full_name
+        LIMIT 20;
+        """,
 }
 
 
@@ -2504,83 +2524,103 @@ SQL_QUERIES = {
 
 def show_sql_analytics_page():
 
-    st.markdown(
-        '<div class="title-bar">'
-        '📚 SQL Analytics - 25 Queries'
-        '</div>',
-        unsafe_allow_html=True
+    page_title(
+        "📚 SQL Analytics - 25 Queries"
     )
 
     st.write(
-        "25 SQL queries covering players, teams, matches, "
-        "batting, bowling, venues, partnerships and "
-        "advanced cricket analytics."
+        "25 SQL queries covering players, teams, "
+        "matches, batting, bowling, venues, "
+        "partnerships and advanced cricket analytics."
     )
-
-    selected_query_name = st.selectbox(
-        "Choose SQL Query",
-        list(SQL_QUERIES.keys())
-    )
-
-    selected_query = SQL_QUERIES[
-        selected_query_name
-    ]
 
     st.subheader(
-        f"🔎 {selected_query_name}"
+        "🔎 Select SQL Query"
+    )
+
+    query_names = list(
+        SQL_QUERIES.keys()
+    )
+
+    # --------------------------------------------------------
+    # IMPORTANT:
+    # Instead of selectbox, all 25 queries are displayed
+    # vertically as a step-by-step numbered list.
+    # --------------------------------------------------------
+
+    selected_query = st.radio(
+        "Choose one query to execute:",
+        query_names,
+        index=0,
+        label_visibility="visible",
+    )
+
+    st.divider()
+
+    query = SQL_QUERIES[
+        selected_query
+    ]
+
+    st.markdown(
+        f"""
+        <div class="sql-query-number">
+            🔎 {selected_query}
+        </div>
+        """,
+        unsafe_allow_html=True,
     )
 
     st.code(
-        selected_query,
-        language="sql"
+        query.strip(),
+        language="sql",
+    )
+
+    st.caption(
+        "Review the SQL query above and click "
+        "'Run SQL Query' to execute it."
     )
 
     if st.button(
         "▶️ Run SQL Query",
-        type="primary"
+        type="primary",
+        key="run_sql_query_button",
     ):
-
-        connection = None
-        cursor = None
 
         try:
 
-            connection = get_connection()
-
-            cursor = connection.cursor(
-                dictionary=True
+            rows = execute_select(
+                query
             )
-
-            cursor.execute(
-                selected_query
-            )
-
-            rows = cursor.fetchall()
 
             if rows:
 
-                df = pd.DataFrame(rows)
+                df = pd.DataFrame(
+                    rows
+                )
 
                 st.success(
-                    f"Query executed successfully. "
+                    "Query executed successfully. "
                     f"{len(df)} row(s) returned."
+                )
+
+                st.subheader(
+                    "📊 Query Result"
                 )
 
                 st.dataframe(
                     df,
                     use_container_width=True,
-                    hide_index=True
-                )
-
-                csv_data = df.to_csv(
-                    index=False
+                    hide_index=True,
                 )
 
                 st.download_button(
                     "⬇️ Download Query Result CSV",
-                    csv_data,
+                    df.to_csv(
+                        index=False
+                    ),
                     "sql_query_result.csv",
-                    "text/csv"
+                    "text/csv",
+                    key="download_sql_result",
                 )
 
             else:
@@ -2595,14 +2635,6 @@ def show_sql_analytics_page():
             st.error(
                 f"SQL query failed: {e}"
             )
-
-        finally:
-
-            if cursor:
-                cursor.close()
-
-            if connection:
-                connection.close()
 
 
 # ============================================================
@@ -2651,7 +2683,6 @@ try:
 
         show_sql_analytics_page()
 
-
 except Exception as e:
 
     st.error(
@@ -2676,5 +2707,5 @@ st.markdown(
         </span>
     </div>
     """,
-    unsafe_allow_html=True
+    unsafe_allow_html=True,
 )
